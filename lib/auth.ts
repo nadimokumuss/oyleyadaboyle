@@ -3,6 +3,8 @@ import { db } from "@/db/client";
 import { settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ensureReferenceData } from "./services/reference";
+import { verifyCode, consumeRecoveryCode } from "./totp";
+import { isPublicDeployment } from "./security";
 
 /**
  * Tek kullanıcılı PIN kilidi.
@@ -24,13 +26,21 @@ const KEY_LEN = 64;
 const SCRYPT_OPTS = { N: 32_768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
 export const SESSION_COOKIE = "servet_oturum";
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 saat
+/**
+ * Oturum süresi. İnternete açık kurulumda kısaltılır: açık bırakılmış
+ * bir sekmenin ele geçirilme penceresi daralır.
+ */
+const SESSION_TTL_MS = isPublicDeployment
+  ? 2 * 60 * 60 * 1000   // 2 saat
+  : 12 * 60 * 60 * 1000; // 12 saat
 
 export interface AuthState {
   /** Kurulum yapıldı mı? */
   setupCompleted: boolean;
   /** PIN belirlenmiş mi? */
   hasPin: boolean;
+  /** İki faktörlü doğrulama açık mı? */
+  totpEnabled: boolean;
 }
 
 function readSettingsRow() {
@@ -56,7 +66,63 @@ export function getAuthState(): AuthState {
   return {
     setupCompleted: row.setupCompleted,
     hasPin: Boolean(row.pinHash && row.pinSalt),
+    totpEnabled: row.totpEnabled && Boolean(row.totpSecret),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* İki faktörlü doğrulama                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * İkinci faktörü doğrular: önce TOTP kodu, olmazsa kurtarma kodu.
+ * Kurtarma kodu kullanılırsa listeden silinir — tek kullanımlık.
+ */
+export function verifySecondFactor(code: string): boolean {
+  const row = readSettingsRow();
+  if (!row?.totpEnabled || !row.totpSecret) return true;
+
+  if (verifyCode(row.totpSecret, code)) return true;
+
+  const codes = row.recoveryCodes ?? [];
+  const result = consumeRecoveryCode(code, codes);
+  if (result.valid) {
+    db.update(settings)
+      .set({ recoveryCodes: result.remaining, updatedAt: new Date().toISOString() })
+      .where(eq(settings.id, "singleton"))
+      .run();
+    return true;
+  }
+  return false;
+}
+
+export function enableTotp(secret: string, hashedRecoveryCodes: string[]): void {
+  db.update(settings)
+    .set({
+      totpSecret: secret,
+      totpEnabled: true,
+      recoveryCodes: hashedRecoveryCodes,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(settings.id, "singleton"))
+    .run();
+}
+
+export function disableTotp(): void {
+  db.update(settings)
+    .set({
+      totpSecret: null,
+      totpEnabled: false,
+      recoveryCodes: [],
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(settings.id, "singleton"))
+    .run();
+}
+
+/** Kalan kurtarma kodu sayısı. */
+export function remainingRecoveryCodes(): number {
+  return readSettingsRow()?.recoveryCodes?.length ?? 0;
 }
 
 /* ------------------------------------------------------------------ */

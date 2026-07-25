@@ -1,20 +1,32 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { settings } from "@/db/schema";
 import {
   setPin, verifyPin, createSessionToken, ensureSettingsRow, getAuthState,
+  verifySecondFactor, enableTotp, disableTotp,
   SESSION_COOKIE, SESSION_MAX_AGE_SECONDS,
-  registerFailedAttempt, clearFailedAttempts, lockRemainingSeconds,
 } from "@/lib/auth";
+import {
+  checkPassword, recordAttempt, checkLock, clearAttempts,
+  isIpAllowed, clientIp, isPublicDeployment,
+} from "@/lib/security";
+import { generateSecret, verifyCode, generateRecoveryCodes, otpauthUrl } from "@/lib/totp";
 import { toDecimal } from "@/lib/money";
 
 export interface ActionState {
   error?: string;
   fieldErrors?: Record<string, string>;
+  /** İkinci faktör isteniyor. */
+  needsSecondFactor?: boolean;
+}
+
+async function requestContext(): Promise<{ ip: string | null; ua: string | null }> {
+  const h = await headers();
+  return { ip: clientIp(h), ua: h.get("user-agent") };
 }
 
 async function startSession(): Promise<void> {
@@ -22,9 +34,8 @@ async function startSession(): Promise<void> {
   store.set(SESSION_COOKIE, createSessionToken(), {
     httpOnly: true,
     sameSite: "lax",
-    // Panel yerelde http üzerinden çalışıyor; secure zorlarsak çerez hiç
-    // yazılmaz. Üretimde HTTPS ardına konursa burası açılmalı.
-    secure: process.env.NODE_ENV === "production" && process.env.SERVET_HTTPS === "1",
+    // İnternete açık kurulumda çerez yalnızca HTTPS üzerinden gider
+    secure: isPublicDeployment,
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
   });
@@ -38,8 +49,7 @@ export async function completeSetup(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const state = getAuthState();
-  if (state.setupCompleted) {
+  if (getAuthState().setupCompleted) {
     return { error: "Kurulum zaten tamamlanmış." };
   }
 
@@ -52,9 +62,9 @@ export async function completeSetup(
 
   const fieldErrors: Record<string, string> = {};
 
-  if (pin.length < 4) fieldErrors.pin = "PIN en az 4 karakter olmalı";
-  if (pin.length > 64) fieldErrors.pin = "PIN çok uzun";
-  if (pin !== pinConfirm) fieldErrors.pinConfirm = "PIN'ler eşleşmiyor";
+  const strength = checkPassword(pin);
+  if (!strength.ok) fieldErrors.pin = strength.errors[0];
+  if (pin !== pinConfirm) fieldErrors.pinConfirm = "Parolalar eşleşmiyor";
 
   let livingCost = "0";
   if (livingCostRaw) {
@@ -71,7 +81,6 @@ export async function completeSetup(
   if (!Number.isInteger(horizon) || horizon < 1 || horizon > 60) {
     fieldErrors.horizonYears = "1 ile 60 yıl arasında olmalı";
   }
-
   if (!["conservative", "balanced", "aggressive"].includes(riskProfile)) {
     fieldErrors.riskProfile = "Geçersiz risk profili";
   }
@@ -94,38 +103,70 @@ export async function completeSetup(
     .where(eq(settings.id, "singleton"))
     .run();
 
-  clearFailedAttempts();
+  clearAttempts();
   await startSession();
   redirect("/");
 }
 
 /* ------------------------------------------------------------------ */
-/* Giriş / çıkış                                                       */
+/* Giriş                                                               */
 /* ------------------------------------------------------------------ */
 
 export async function login(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const locked = lockRemainingSeconds();
-  if (locked > 0) {
-    return { error: `Çok fazla hatalı deneme. ${locked} saniye sonra tekrar deneyin.` };
+  const { ip, ua } = await requestContext();
+
+  // IP kısıtlaması varsa önce o
+  if (!isIpAllowed(ip)) {
+    recordAttempt({ ip, userAgent: ua, success: false, reason: "IP izinli değil" });
+    return { error: "Bu ağdan erişim izniniz yok." };
+  }
+
+  const lock = checkLock(ip);
+  if (lock.locked) {
+    return {
+      error:
+        `Çok fazla hatalı deneme (${lock.recentFailures}). ` +
+        `${lock.remainingSeconds} saniye sonra tekrar deneyin.`,
+    };
   }
 
   const pin = String(formData.get("pin") ?? "");
-  if (!pin) return { fieldErrors: { pin: "PIN girin" } };
+  const code = String(formData.get("code") ?? "").trim();
+  if (!pin) return { fieldErrors: { pin: "Parola girin" } };
 
   if (!verifyPin(pin)) {
-    registerFailedAttempt();
-    const wait = lockRemainingSeconds();
+    recordAttempt({ ip, userAgent: ua, success: false, reason: "Hatalı parola" });
+    const after = checkLock(ip);
     return {
       fieldErrors: {
-        pin: wait > 0 ? `Hatalı PIN. ${wait} saniye bekleyin.` : "Hatalı PIN",
+        pin: after.locked
+          ? `Hatalı parola. ${after.remainingSeconds} saniye bekleyin.`
+          : "Hatalı parola",
       },
     };
   }
 
-  clearFailedAttempts();
+  // Parola doğru — ikinci faktör gerekiyor mu?
+  const state = getAuthState();
+  if (state.totpEnabled) {
+    if (!code) {
+      // Parolayı doğru bildiğini biliyoruz; kodu iste
+      return { needsSecondFactor: true };
+    }
+    if (!verifySecondFactor(code)) {
+      recordAttempt({ ip, userAgent: ua, success: false, reason: "Hatalı 2FA kodu" });
+      return {
+        needsSecondFactor: true,
+        fieldErrors: { code: "Kod geçersiz veya süresi dolmuş" },
+      };
+    }
+  }
+
+  recordAttempt({ ip, userAgent: ua, success: true });
+  clearAttempts();
   await startSession();
   redirect("/");
 }
@@ -134,4 +175,57 @@ export async function logout(): Promise<void> {
   const store = await cookies();
   store.delete(SESSION_COOKIE);
   redirect("/giris");
+}
+
+/* ------------------------------------------------------------------ */
+/* İki faktörlü doğrulama kurulumu                                     */
+/* ------------------------------------------------------------------ */
+
+export interface TotpSetupState {
+  error?: string;
+  secret?: string;
+  otpauth?: string;
+  /** Yalnızca bir kez gösterilir. */
+  recoveryCodes?: string[];
+  enabled?: boolean;
+}
+
+/** Yeni bir gizli anahtar üretir ve kullanıcıya gösterir (henüz açmaz). */
+export async function beginTotpSetup(): Promise<TotpSetupState> {
+  const secret = generateSecret();
+  return { secret, otpauth: otpauthUrl(secret) };
+}
+
+/**
+ * Kullanıcının ürettiği kodu doğrulayıp 2FA'yı açar.
+ * Doğrulamadan açmıyoruz — yanlış kurulmuş bir uygulama yüzünden
+ * kullanıcının kendini kilitlemesi en kötü sonuç olurdu.
+ */
+export async function confirmTotpSetup(
+  _prev: TotpSetupState,
+  formData: FormData,
+): Promise<TotpSetupState> {
+  const secret = String(formData.get("secret") ?? "");
+  const code = String(formData.get("code") ?? "").trim();
+
+  if (!secret) return { error: "Kurulum oturumu bulunamadı, tekrar başlayın." };
+  if (!verifyCode(secret, code)) {
+    return {
+      secret,
+      otpauth: otpauthUrl(secret),
+      error: "Kod doğrulanamadı. Uygulamadaki güncel kodu girin.",
+    };
+  }
+
+  const { plain, hashed } = generateRecoveryCodes(8);
+  enableTotp(secret, hashed);
+
+  return { enabled: true, recoveryCodes: plain };
+}
+
+export async function disableTotpAction(formData: FormData): Promise<void> {
+  const pin = String(formData.get("pin") ?? "");
+  if (!verifyPin(pin)) throw new Error("Parola yanlış — 2FA kapatılmadı.");
+  disableTotp();
+  redirect("/ayarlar");
 }

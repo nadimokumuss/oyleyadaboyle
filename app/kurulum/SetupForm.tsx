@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { completeSetup, type ActionState } from "@/app/actions/auth";
 import {
   Field, TextInput, Select, MoneyInput, CurrencySelect,
@@ -9,9 +9,18 @@ import { SubmitButton } from "@/components/form/Button";
 
 const initial: ActionState = {};
 
-export function SetupForm() {
+export function SetupForm({ minLength = 4 }: { minLength?: number }) {
   const [state, action] = useActionState(completeSetup, initial);
   const err = state.fieldErrors ?? {};
+  const [pin, setPin] = useState("");
+
+  // Kaba güç göstergesi — uzunluk ağırlıklı
+  const strength =
+    (pin.length >= 8 ? 1 : 0) +
+    (pin.length >= 12 ? 1 : 0) +
+    (pin.length >= 16 ? 1 : 0) +
+    (/[^a-zA-Z0-9]/.test(pin) || /\s/.test(pin) ? 1 : 0);
+  const LABELS = ["Çok zayıf", "Zayıf", "Orta", "İyi", "Güçlü"];
 
   return (
     <form action={action} className="space-y-5 rounded-lg border border-line bg-surface-raised p-6">
@@ -25,11 +34,15 @@ export function SetupForm() {
         <legend className="mb-1 text-sm font-medium text-ink">Kilit</legend>
 
         <Field
-          label="PIN belirleyin"
+          label="Parola belirleyin"
           htmlFor="pin"
           required
           error={err.pin}
-          hint="En az 4 karakter. Bilgisayarınıza erişen birinin servetinizi görmesini engeller."
+          hint={
+            minLength > 4
+              ? `En az ${minLength} karakter. Uzun bir cümle ("kirmizi kedi merdivende uyudu") kısa ve karmaşık bir paroladan çok daha güçlüdür.`
+              : "En az 4 karakter. Bilgisayarınıza erişen birinin servetinizi görmesini engeller."
+          }
         >
           <TextInput
             id="pin"
@@ -37,12 +50,38 @@ export function SetupForm() {
             type="password"
             autoComplete="new-password"
             required
-            minLength={4}
+            minLength={minLength}
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
             error={err.pin}
           />
+          {pin.length > 0 && (
+            <div className="mt-2">
+              <div className="flex gap-1" aria-hidden>
+                {[0, 1, 2, 3].map((i) => (
+                  <span
+                    key={i}
+                    className={
+                      "h-1 flex-1 rounded-full " +
+                      (i < strength
+                        ? strength <= 1
+                          ? "bg-loss"
+                          : strength === 2
+                            ? "bg-warn"
+                            : "bg-gain"
+                        : "bg-surface-hover")
+                    }
+                  />
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-ink-faint">
+                Güç: {LABELS[strength]} · {pin.length} karakter
+              </p>
+            </div>
+          )}
         </Field>
 
-        <Field label="PIN tekrar" htmlFor="pinConfirm" required error={err.pinConfirm}>
+        <Field label="Parola tekrar" htmlFor="pinConfirm" required error={err.pinConfirm}>
           <TextInput
             id="pinConfirm"
             name="pinConfirm"

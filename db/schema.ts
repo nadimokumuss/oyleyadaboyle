@@ -332,8 +332,42 @@ export const settings = sqliteTable("settings", {
   /** Opsiyonel temel analiz sağlayıcısı anahtarı (Finnhub vb.). */
   fundamentalsApiKey: text("fundamentals_api_key"),
 
+  /**
+   * İki faktörlü doğrulama (TOTP).
+   * Gizli anahtar base32; yalnızca kurulum sırasında gösterilir.
+   */
+  totpSecret: text("totp_secret"),
+  totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
+  /** Tek kullanımlık kurtarma kodlarının hash'leri (JSON dizi). */
+  recoveryCodes: text("recovery_codes", { mode: "json" }).$type<string[]>().default([]),
+
+  /**
+   * İzin verilen IP listesi (virgülle ayrılmış, CIDR destekli).
+   * Boşsa kısıtlama yok.
+   */
+  allowedIps: text("allowed_ips"),
+
   ...timestamps,
 });
+
+/**
+ * Giriş denemeleri — kaba kuvvet takibi ve güvenlik günlüğü.
+ *
+ * Bellekte tutmak yetmiyor: sunucu yeniden başlarsa sayaç sıfırlanır
+ * ve saldırgan bunu tetikleyebilir. Kalıcı kayıt bunu engeller.
+ */
+export const loginAttempts = sqliteTable(
+  "login_attempts",
+  {
+    id: id(),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    success: integer("success", { mode: "boolean" }).notNull(),
+    reason: text("reason"),
+    at: text("at").notNull().default(sql`(datetime('now'))`),
+  },
+  (t) => [index("login_attempts_at_idx").on(t.at)],
+);
 
 /**
  * Borçlar — kredi, ipotek, taşıt kredisi.

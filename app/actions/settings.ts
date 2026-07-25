@@ -164,12 +164,46 @@ export async function saveWithholdingAction(formData: FormData): Promise<void> {
 /* Veri yönetimi                                                       */
 /* ------------------------------------------------------------------ */
 
-/**
- * Tüm varlık ve işlem kayıtlarını siler.
- *
- * Ayarlar, PIN ve stopaj tablosu korunur — kullanıcı verisini
- * temizlemek istiyor, kurulumu baştan yapmak değil.
- */
+/** IP kısıtlama ayarlarını kaydeder. */
+export async function saveSecurityAction(
+  _p: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  await assertAuth();
+
+  const raw = String(formData.get("allowedIps") ?? "").trim();
+
+  // Biçim doğrulaması: kendini yanlış bir kuralla kilitlememek için
+  if (raw) {
+    const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    for (const part of parts) {
+      const [addr, bits] = part.split("/");
+      const octets = addr.split(".");
+      const validAddr =
+        octets.length === 4 &&
+        octets.every((o) => {
+          const n = Number(o);
+          return Number.isInteger(n) && n >= 0 && n <= 255;
+        });
+      const validBits =
+        bits === undefined ||
+        (Number.isInteger(Number(bits)) && Number(bits) >= 0 && Number(bits) <= 32);
+
+      if (!validAddr || !validBits) {
+        return { fieldErrors: { allowedIps: `Geçersiz adres: ${part}` } };
+      }
+    }
+  }
+
+  db.update(settings)
+    .set({ allowedIps: raw || null, updatedAt: new Date().toISOString() })
+    .where(eq(settings.id, "singleton"))
+    .run();
+
+  revalidateAll();
+  return { savedId: "security" };
+}
+
 export interface ImportState {
   error?: string;
   imported?: number;
@@ -212,6 +246,12 @@ export async function importCsvAction(
   }
 }
 
+/**
+ * Tüm varlık ve işlem kayıtlarını siler.
+ *
+ * Ayarlar, PIN ve stopaj tablosu korunur — kullanıcı verisini
+ * temizlemek istiyor, kurulumu baştan yapmak değil.
+ */
 export async function clearAllDataAction(formData: FormData): Promise<void> {
   await assertAuth();
 

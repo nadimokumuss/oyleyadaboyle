@@ -2,7 +2,10 @@ import { PageShell, Card } from "@/components/PageShell";
 import { db } from "@/db/client";
 import { targets, withholdingRates } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { ensureSettingsRow } from "@/lib/auth";
+import { ensureSettingsRow, getAuthState, remainingRecoveryCodes } from "@/lib/auth";
+import { recentAttempts, isPublicDeployment } from "@/lib/security";
+import { TotpForm } from "@/components/forms/TotpForm";
+import { SecurityForm } from "@/components/forms/SecurityForm";
 import { SettingsForm } from "@/components/forms/SettingsForm";
 import { TargetsForm } from "@/components/forms/TargetsForm";
 import { PinForm } from "@/components/forms/PinForm";
@@ -18,6 +21,8 @@ export default function AyarlarPage() {
     .where(eq(targets.dimension, "kind"))
     .all();
   const whRows = db.select().from(withholdingRates).all();
+  const auth = getAuthState();
+  const attempts = recentAttempts(10);
 
   const targetMap = Object.fromEntries(targetRows.map((t) => [t.key, t.targetPct]));
   const tolerance = targetRows[0]?.tolerancePct ?? "0.05";
@@ -83,6 +88,45 @@ export default function AyarlarPage() {
 
         <Card title="Kilit">
           <PinForm />
+        </Card>
+
+        <Card
+          title="İki faktörlü doğrulama"
+          hint={auth.totpEnabled ? "açık" : "kapalı"}
+        >
+          <TotpForm
+            enabled={auth.totpEnabled}
+            remainingCodes={remainingRecoveryCodes()}
+          />
+        </Card>
+
+        <Card title="Erişim kısıtlama">
+          <SecurityForm
+            allowedIps={cfg.allowedIps ?? ""}
+            isPublic={isPublicDeployment}
+          />
+        </Card>
+
+        <Card title="Giriş kayıtları" hint="son 10 deneme">
+          {attempts.length === 0 ? (
+            <p className="text-sm text-ink-faint">Henüz kayıt yok.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {attempts.map((a) => (
+                <li
+                  key={a.id}
+                  className="num flex flex-wrap items-baseline justify-between gap-3 text-xs"
+                >
+                  <span className={a.success ? "text-gain" : "text-loss"}>
+                    {a.success ? "Başarılı giriş" : `Başarısız — ${a.reason ?? "?"}`}
+                  </span>
+                  <span className="text-ink-faint">
+                    {a.ip ?? "yerel"} · {new Date(a.at).toLocaleString("tr-TR")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
         <Card title="Veri">

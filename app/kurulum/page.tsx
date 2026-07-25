@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuthState } from "@/lib/auth";
+import { MIN_SECRET_LENGTH, isPublicDeployment } from "@/lib/security";
 import { SetupForm } from "./SetupForm";
 
 export const dynamic = "force-dynamic";
@@ -16,11 +17,12 @@ export default function KurulumPage() {
             Servet Terminali kurulumu
           </h1>
           <p className="mt-1.5 text-pretty text-sm text-ink-muted">
-            Tek seferlik birkaç ayar. Tüm veriniz bu bilgisayarda kalır; dışarı
-            yalnızca anonim fiyat sorguları gider.
+            {isPublicDeployment
+              ? "Bu panel internete açık çalışıyor. Güçlü bir parola seçin ve kurulumdan sonra ayarlardan iki faktörlü doğrulamayı açın."
+              : "Tek seferlik birkaç ayar. Tüm veriniz bu bilgisayarda kalır; dışarı yalnızca anonim fiyat sorguları gider."}
           </p>
         </header>
-        <SetupForm />
+        <SetupForm minLength={MIN_SECRET_LENGTH} />
       </div>
     </div>
   );
