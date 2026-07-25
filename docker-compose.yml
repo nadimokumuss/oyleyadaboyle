@@ -1,0 +1,51 @@
+# Sunucu üzerinde çalıştırma — Oracle Cloud, herhangi bir VPS veya
+# evdeki bir makine için.
+#
+# İki servis:
+#   servet — panelin kendisi, dışarıya açık değil
+#   caddy  — ters vekil; HTTPS sertifikasını otomatik alır ve yeniler
+#
+# Panel doğrudan internete bakmaz; yalnızca Caddy üzerinden erişilir.
+# Bu, TLS'i tek bir yerde toplar ve panelin kendi portunu kapalı tutar.
+
+services:
+  servet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # Sıkı güvenlik modu: uzun parola, kısa oturum, güvenli çerez
+      SERVET_PUBLIC: "1"
+      SERVET_DB_PATH: /data/servet.db
+      PORT: "3000"
+    volumes:
+      # Veritabanının yaşadığı yer. Bu birim silinmedikçe veriniz kalıcı.
+      - servet_data:/data
+    # Port dışarıya açılmıyor — yalnızca Caddy ağı üzerinden erişilebilir
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # Let's Encrypt sertifikaları
+      - caddy_config:/config
+    depends_on:
+      - servet
+
+volumes:
+  servet_data:
+  caddy_data:
+  caddy_config:

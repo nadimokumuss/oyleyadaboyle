@@ -1,0 +1,41 @@
+# Caddy — ters vekil ve otomatik HTTPS
+#
+# ALAN_ADINIZ yerine kendi alan adınızı yazın (örn. servet.ornek.com).
+# Caddy Let's Encrypt sertifikasını kendisi alır ve yeniler; hiçbir
+# elle sertifika işlemi gerekmez.
+#
+# Alan adınız yoksa: bu satırı sunucunuzun IP adresiyle değiştirin ve
+# aşağıdaki `tls internal` satırının başındaki # işaretini kaldırın.
+# Bu durumda tarayıcı sertifika uyarısı verir — kendi kendine imzalı
+# sertifika kullanılır. Alan adı almak (yılda birkaç dolar) daha iyidir.
+
+ALAN_ADINIZ {
+	# tls internal
+
+	# Panel Docker ağı içinde; dışarıya kendi portu açık değil
+	reverse_proxy servet:3000
+
+	# Panelin arkasında olduğumuzu bildir — IP kısıtlaması ve giriş
+	# kayıtları gerçek istemci IP'sini görsün diye
+	header_up X-Real-IP {remote_host}
+
+	encode zstd gzip
+
+	# Güvenlik başlıkları. Uygulama da bunları gönderiyor; burada
+	# tekrarlamak, uygulama bir hata verse bile korumanın kalmasını sağlar.
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# Erişim kaydı — kim ne zaman denedi
+	log {
+		output file /data/erisim.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+	}
+}

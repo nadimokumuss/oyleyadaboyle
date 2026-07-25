@@ -1,149 +1,227 @@
-# Dağıtım rehberi
+# Dağıtım rehberi — Oracle Cloud (ücretsiz)
 
-Panel kalıcı diske ihtiyaç duyar. Bu belge Fly.io üzerinden anlatıyor;
-Railway, Render veya kendi sunucunuz da aynı mantıkla çalışır.
+Panel kalıcı diske ihtiyaç duyar. Oracle Cloud'un **Always Free** katmanı
+süresiz ücretsiz bir sunucu veriyor ve Docker olduğu gibi çalışıyor —
+uygulamada tek satır değişiklik gerekmez.
 
-> **Vercel'e kurulamaz.** Sunucusuz platformlarda dosya sistemi geçicidir;
-> SQLite veritabanı her dağıtımda ve çoğu zaman istekler arasında silinir.
-> Vercel'i mutlaka kullanmak isterseniz veritabanı katmanının Turso gibi
-> barındırılan bir SQLite servisine taşınması gerekir.
+> **Neden Vercel değil:** Sunucusuz platformlarda dosya sistemi geçicidir;
+> SQLite veritabanı her dağıtımda silinir. Vercel kullanmak isterseniz
+> veritabanı katmanının Turso'ya taşınması gerekir — bu, uygulamadaki her
+> veritabanı çağrısının asenkrona çevrilmesi demektir.
 
 ---
 
-## Fly.io ile dağıtım
+## Ne alacaksınız (ücretsiz)
 
-### 1. Hazırlık
+| Kaynak | Miktar |
+|---|---|
+| İşlemci | 2 çekirdek ARM (Ampere A1) |
+| Bellek | 12 GB |
+| Disk | 200 GB'a kadar |
+| Trafik | Aylık 10 TB |
+| Süre | **Süresiz** — hesap aktif kaldığı sürece |
+
+Doğrulama için kredi kartı istenir ama **ücret çekilmez**. Hesap "Always
+Free" sınırları içinde kaldığı sürece faturalandırma başlamaz.
+
+> Haziran 2026'da ücretsiz ARM sınırı 4 çekirdek/24 GB'dan 2 çekirdek/12 GB'a
+> düşürüldü. Bu panel için fazlasıyla yeterli.
+
+---
+
+## 1. Sunucuyu oluştur
+
+1. [cloud.oracle.com](https://cloud.oracle.com) → hesap açın
+   (Türkiye'yi ve size en yakın bölgeyi seçin — Frankfurt önerilir)
+2. **Compute → Instances → Create Instance**
+3. Ayarlar:
+   - **Image:** Canonical Ubuntu 24.04
+   - **Shape:** `VM.Standard.A1.Flex` → **2 OCPU, 12 GB** (Always Free etiketli)
+   - **SSH keys:** "Generate a key pair for me" → **özel anahtarı indirin**
+   - **Boot volume:** 50 GB yeterli
+4. **Create**
+
+Birkaç dakika içinde bir **genel IP adresi** alırsınız.
+
+> ARM sunucu bulamıyorsanız ("out of capacity" hatası): bu bölgede geçici
+> olarak stok yok demektir. Başka bir bölge deneyin veya birkaç saat sonra
+> tekrar deneyin — sık karşılaşılan bir durum.
+
+## 2. Portları aç
+
+Oracle varsayılan olarak her şeyi kapalı tutar. İki yerde açmak gerekir:
+
+**a) Sanal ağ kuralları:** Instance → Subnet → Security List → **Add Ingress Rules**
+
+| Kaynak | Port |
+|---|---|
+| `0.0.0.0/0` | 80 |
+| `0.0.0.0/0` | 443 |
+
+**b) Sunucunun kendi güvenlik duvarı** — sunucuya bağlandıktan sonra
+(3. adımdaki komutlar bunu hallediyor).
+
+## 3. Sunucuya bağlan ve hazırla
 
 ```bash
-brew install flyctl      # macOS
-fly auth signup          # veya: fly auth login
+chmod 600 ~/Downloads/ssh-key-*.key
+ssh -i ~/Downloads/ssh-key-*.key ubuntu@SUNUCU_IP
 ```
 
-### 2. Uygulamayı oluştur
+Bağlandıktan sonra tek seferde:
 
 ```bash
-cd ~/Desktop/öyleyadaböyle
-fly launch --no-deploy --name SIZIN-SECTIGINIZ-AD
+# Docker kur
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker ubuntu
+
+# Ubuntu'nun güvenlik duvarında portları aç
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo netfilter-persistent save
+
+# Oturumu yenile (docker grubu için)
+exit
 ```
 
-`fly.toml` dosyasındaki `app` alanını da aynı adla güncelleyin.
+Tekrar bağlanın.
 
-### 3. Kalıcı disk oluştur
-
-**En kritik adım.** Bu olmadan verileriniz her dağıtımda silinir.
+## 4. Kodu sunucuya al
 
 ```bash
-fly volumes create servet_data --size 1 --region fra
+# GitHub deposu özelse önce sunucuda kimlik doğrulaması gerekir:
+sudo apt install -y gh && gh auth login
+
+git clone https://github.com/KULLANICI_ADINIZ/servet-terminali.git
+cd servet-terminali
 ```
 
-1 GB fazlasıyla yeter — veritabanı yıllar sonra bile birkaç megabayt kalır.
+## 5. Alan adını ayarla
 
-### 4. Dağıt
+`Caddyfile` dosyasını açıp ilk satırdaki `ALAN_ADINIZ` yerine kendi alan
+adınızı yazın:
 
 ```bash
-fly deploy
+nano Caddyfile
 ```
 
-İlk açılışta şema göçleri otomatik uygulanır (`docker-entrypoint.sh`).
+**Alan adınız yoksa:** ücretsiz bir alt alan adı alabilirsiniz
+([DuckDNS](https://duckdns.org) gibi) veya IP adresini yazıp `tls internal`
+satırını etkinleştirin — o durumda tarayıcı sertifika uyarısı verir.
 
-### 5. Aç ve kurulumu yap
+Alan adı aldıysanız DNS'te bir **A kaydı** oluşturup sunucunuzun IP'sine
+yönlendirin. Yayılması birkaç dakika sürebilir.
+
+## 6. Çalıştır
 
 ```bash
-fly open
+docker compose up -d --build
 ```
 
-Kurulum sihirbazı çıkar. **Uzun bir parola seçin** — panel internete açık
-olduğu için asgari 12 karakter zorunlu tutulur.
+İlk derleme ARM üzerinde 5–10 dakika sürer (`better-sqlite3` kaynaktan
+derlenir). Sonraki güncellemeler çok daha hızlıdır.
 
-### 6. İki faktörlü doğrulamayı aç
+Durumu izlemek için:
 
-Kurulumdan hemen sonra **Ayarlar → İki faktörlü doğrulama**. Bunu atlamayın:
-parolanızı ele geçiren biri doğrudan tüm servetinizi görür.
+```bash
+docker compose logs -f
+```
 
-Kurtarma kodlarını bir parola yöneticisine kaydedin — bir daha gösterilmez.
+`✓ Şema güncel` ve `Ready` satırlarını görünce hazırdır.
 
-### 7. (İsteğe bağlı) IP kısıtlaması
+## 7. Aç ve kurulumu tamamla
 
-Ev veya ofis IP'niz sabitse **Ayarlar → Erişim kısıtlama** bölümünden
-ekleyin. Bu, paneli pratikte dünyanın geri kalanından tamamen gizler.
+`https://ALAN_ADINIZ` adresine gidin. Kurulum sihirbazı çıkar.
 
-> Dikkat: mobil bağlantı veya dinamik IP kullanıyorsanız kendinizi
-> kilitleyebilirsiniz. Kilitlenirseniz:
-> ```bash
-> fly ssh console
-> # sqlite3 /data/servet.db "UPDATE settings SET allowed_ips = NULL;"
-> ```
+- **Uzun bir parola seçin** — panel internete açık olduğu için asgari
+  12 karakter zorunlu. Bir cümle en kolayı: `kirmizi kedi merdivende uyudu`
+- Kurulumdan hemen sonra **Ayarlar → İki faktörlü doğrulama**'yı açın
+- **Kurtarma kodlarını** parola yöneticinize kaydedin — bir daha gösterilmez
+
+---
+
+## Verilerinizi taşımak
+
+Bilgisayarınızdaki panelde veriniz varsa iki yol var:
+
+**a) CSV ile (temiz yol)**
+Yerel panelde **Ayarlar → Veri → Varlıklar CSV** indirin, canlı panelde
+**Ayarlar → İçe aktarım** ile yükleyin. Mevduat, gayrimenkul ve girişim
+CSV'de tam taşınmaz; onları formdan girersiniz.
+
+**b) Veritabanını kopyalayarak (her şey taşınır)**
+```bash
+# Yerelde
+scp -i ~/Downloads/ssh-key-*.key data/servet.db ubuntu@SUNUCU_IP:~/
+
+# Sunucuda
+docker compose stop servet
+docker cp ~/servet.db $(docker compose ps -q servet):/data/servet.db
+docker compose start servet
+```
+Bu yöntem PIN'inizi de taşır — canlı panele yerel parolanızla girersiniz.
 
 ---
 
 ## Yedekleme
 
-Veritabanı tek dosya: `/data/servet.db`.
+Veritabanı tek dosya. Düzenli yedek alın:
 
 ```bash
-# Sunucudan indir
-fly ssh console -C "cat /data/servet.db" > yedek-$(date +%F).db
-
-# Veya panelden CSV dışa aktarım (Ayarlar → Veri)
+# Sunucudan bilgisayarınıza indir
+ssh -i ~/Downloads/ssh-key-*.key ubuntu@SUNUCU_IP \
+  "docker compose -f ~/servet-terminali/docker-compose.yml exec -T servet cat /data/servet.db" \
+  > yedek-$(date +%F).db
 ```
 
-Düzenli yedek alın. Fly'ın disk anlık görüntüleri de vardır ama tek
-kopyaya güvenmeyin.
+Bunu haftalık bir görev olarak takviminize koymanızı öneririm.
 
 ---
 
-## Maliyet
+## Güncelleme
 
-Tek makine `shared-cpu-1x` / 512 MB + 1 GB disk ≈ **aylık 5 dolar**.
+```bash
+ssh -i ~/Downloads/ssh-key-*.key ubuntu@SUNUCU_IP
+cd servet-terminali
+git pull
+docker compose up -d --build
+```
 
-`auto_stop_machines = "suspend"` ayarı sayesinde panel kullanılmadığında
-uyur; ilk istekte birkaç saniyede uyanır. Bu, faturayı ciddi düşürür.
+Şema göçleri açılışta otomatik uygulanır; veriniz korunur.
 
 ---
 
-## Ortam değişkenleri
+## Sorun giderme
 
-| Değişken | Ne işe yarar |
+| Belirti | Sebep ve çözüm |
 |---|---|
-| `SERVET_PUBLIC=1` | Sıkı güvenlik modu: uzun parola zorunluluğu, 2 saatlik oturum, güvenli çerez, HSTS başlığı |
-| `SERVET_DB_PATH` | Veritabanı yolu (varsayılan `/data/servet.db`) |
-| `PORT` | Dinlenecek port (varsayılan 3000) |
-
----
-
-## Yerelde Docker ile deneme
-
-```bash
-docker build -t servet .
-docker run -p 3000:3000 -v servet_data:/data servet
-```
-
----
-
-## Başka platformlar
-
-**Railway / Render:** Aynı `Dockerfile` çalışır. Panellerinden kalıcı disk
-(volume) ekleyip `/data` yoluna bağlayın, `SERVET_PUBLIC=1` ortam
-değişkenini tanımlayın.
-
-**Kendi sunucunuz (VPS):** `docker compose` ile çalıştırın, önüne Caddy
-veya nginx koyup HTTPS sertifikası alın. `SERVET_PUBLIC=1` şart —
-aksi halde çerez `Secure` işaretlenmez.
+| Sayfa açılmıyor | Oracle güvenlik listesinde 80/443 açık mı? `iptables` kuralları kaydedildi mi? |
+| Sertifika hatası | DNS A kaydı sunucunun IP'sine yayılmış mı? `dig ALAN_ADINIZ` ile kontrol edin |
+| `out of capacity` | ARM stoğu geçici olarak yok; başka bölge veya birkaç saat sonra deneyin |
+| Derleme çok uzun | Normal — ARM'de `better-sqlite3` kaynaktan derleniyor, ilk seferde 5–10 dk |
+| Kendinizi IP kısıtlamasıyla kilitlediniz | `docker compose exec servet node -e "..."` yerine: sunucuda `sqlite3` ile `UPDATE settings SET allowed_ips = NULL;` |
 
 ---
 
 ## Güvenlik kontrol listesi
 
-Canlıya almadan önce:
-
 - [ ] Parola en az 12 karakter, tercihen bir cümle
 - [ ] İki faktörlü doğrulama açık
-- [ ] Kurtarma kodları güvenli bir yerde saklı
-- [ ] HTTPS zorunlu (`force_https = true`)
-- [ ] `SERVET_PUBLIC=1` tanımlı
-- [ ] Yedekleme alışkanlığı kurulmuş
-- [ ] (İsteğe bağlı) IP kısıtlaması
+- [ ] Kurtarma kodları güvenli bir yerde
+- [ ] HTTPS çalışıyor (adres çubuğunda kilit simgesi)
+- [ ] SSH'a yalnızca anahtarla girilebiliyor (Oracle varsayılanı böyle)
+- [ ] Yedekleme alışkanlığı kuruldu
 
-Panel giriş denemelerini kaydeder ve **Ayarlar → Giriş kayıtları**
-bölümünde gösterir. Tanımadığınız bir IP'den denemeler görürseniz
-parolanızı değiştirin ve IP kısıtlamasını açın.
+Panel giriş denemelerini kaydeder; **Ayarlar → Giriş kayıtları**'nda
+görürsünüz. Tanımadığınız bir IP'den denemeler varsa parolanızı değiştirin
+ve IP kısıtlamasını açın.
+
+---
+
+## Maliyet
+
+**Sıfır.** Always Free sınırları içinde kaldığınız sürece ücret çıkmaz.
+Tek olası masraf alan adı (isteğe bağlı, yılda birkaç dolar).
+
+Hesabınızı "Pay As You Go"a yükseltmeyin — Always Free kaynakları yine
+ücretsiz kalır ama yanlışlıkla ücretli bir kaynak açma riski doğar.

@@ -153,6 +153,22 @@ Enflasyon ve konut endeksi varsayımları `db/seeds/indices.json`, araç
 amortisman eğrileri `db/seeds/depreciation.json` dosyalarındadır. Bu değerler
 **temsilîdir**; resmî kaynaklardan (TÜİK, FHFA, Eurostat) güncellenmelidir.
 
+## Canlıya alma
+
+Panel Docker ile kalıcı diskli herhangi bir sunucuda çalışır. Ücretsiz bir
+Oracle Cloud sunucusuna kurulum için adım adım rehber: **[DAGITIM.md](DAGITIM.md)**
+
+```bash
+docker compose up -d --build
+```
+
+İnternete açık kurulumda `SERVET_PUBLIC=1` ortam değişkeni sıkı güvenlik
+modunu açar: asgari 12 karakterlik parola, 2 saatlik oturum, güvenli çerez,
+HSTS. İki faktörlü doğrulamayı (TOTP) ayarlardan açmayı ihmal etmeyin.
+
+> Vercel gibi sunucusuz platformlar bu panel için uygun değildir — dosya
+> sistemi geçici olduğu için SQLite veritabanı her dağıtımda silinir.
+
 ---
 
 Panel hesaplamaya dayalı bilgilendirme üretir. **Yatırım tavsiyesi değildir.**
