@@ -1,0 +1,50 @@
+{
+  "_note": "Araç amortisman eğrisi parametreleri. value(t) = P · e^(−λ·yaş) · kmDüzeltmesi. λ segmente göre yıllık üstel değer kaybı oranıdır; residualFloor değerin düşemeyeceği taban orandır (hurda/koleksiyon değeri). Değerler TEMSİLÎdir, piyasaya göre ayarlanmalıdır.",
+  "segments": {
+    "luxury": {
+      "label": "Lüks / spor",
+      "lambda": 0.22,
+      "residualFloor": 0.18,
+      "note": "İlk yıl kaybı en sert olan segment"
+    },
+    "premium": {
+      "label": "Premium",
+      "lambda": 0.18,
+      "residualFloor": 0.15
+    },
+    "mid": {
+      "label": "Orta segment",
+      "lambda": 0.15,
+      "residualFloor": 0.12
+    },
+    "economy": {
+      "label": "Ekonomik",
+      "lambda": 0.12,
+      "residualFloor": 0.12,
+      "note": "Değerini en iyi koruyan kitle segmenti"
+    },
+    "ev": {
+      "label": "Elektrikli",
+      "lambda": 0.2,
+      "residualFloor": 0.1,
+      "note": "Batarya ömrü ve hızlı model yenilenmesi nedeniyle daha hızlı düşer"
+    },
+    "classic": {
+      "label": "Klasik / koleksiyon",
+      "lambda": -0.03,
+      "residualFloor": 1.0,
+      "note": "Negatif lambda: zamanla değer kazanır"
+    },
+    "commercial": {
+      "label": "Ticari araç",
+      "lambda": 0.14,
+      "residualFloor": 0.1
+    }
+  },
+  "mileage": {
+    "_note": "Yıllık ortalama km'den sapma değeri etkiler. Referans: yılda 15.000 km. Her 10.000 km fazlalık için değer bu oranda düşer.",
+    "referencePerYear": 15000,
+    "penaltyPer10k": 0.035,
+    "maxPenalty": 0.35
+  }
+}

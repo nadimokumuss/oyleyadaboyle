@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+/**
+ * Tema: koyu varsayılan, tek vurgu rengi (amber).
+ * Kazanç/kayıp renkleri sadece sayısal veri için — vurgu rengi sayılmaz.
+ */
+@theme {
+  --color-surface: oklch(0.16 0.008 250);
+  --color-surface-raised: oklch(0.2 0.009 250);
+  --color-surface-hover: oklch(0.24 0.01 250);
+  --color-line: oklch(0.3 0.012 250);
+  --color-ink: oklch(0.95 0.005 250);
+  --color-ink-muted: oklch(0.68 0.012 250);
+  --color-ink-faint: oklch(0.52 0.012 250);
+
+  --color-accent: oklch(0.78 0.14 78);
+
+  --color-gain: oklch(0.75 0.15 155);
+  --color-loss: oklch(0.68 0.18 22);
+  --color-warn: oklch(0.78 0.14 78);
+
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-overlay: 20;
+  --z-modal: 30;
+  --z-toast: 40;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Sayısal veri hizalaması — finans tablolarında sütunların kayması
+   okumayı ciddi şekilde zorlaştırır. */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
