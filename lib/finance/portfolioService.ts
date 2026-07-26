@@ -133,14 +133,36 @@ export async function loadPortfolio(): Promise<PortfolioView> {
     const priceCurrency = q?.currency ?? asset.currency;
     const livePrice = q ? Money.of(q.price, priceCurrency) : null;
 
-    const valued = livePrice
-      ? valuePosition(
-          { ...position, currency: priceCurrency, totalCost: position.totalCost.withCurrency(priceCurrency) },
-          livePrice,
-        )
-      : null;
+    // Maliyet, fiyatın para biriminde.
+    //
+    // Varlığın kayıtlı para birimi ile fiyatın geldiği para birimi
+    // farklı olabilir — örneğin USD olarak kaydedilmiş bir BIST hissesinin
+    // kotasyonu TRY gelir. Eskiden burada `withCurrency` çağrılıyordu ama
+    // o yalnızca etiketi değiştirir, tutarı çevirmez: USD maliyet TRY
+    // sanılıp piyasa değerinden çıkarılıyor, gerçekleşmemiş K/Z anlamsız
+    // bir sayı oluyordu. Artık gerçek çevrim yapılır.
+    const costInPriceCcy =
+      position.totalCost.currency === priceCurrency
+        ? position.totalCost
+        : fx.converter.has(position.totalCost.currency) && fx.converter.has(priceCurrency)
+          ? fx.converter.convert(position.totalCost, priceCurrency)
+          : null;
 
-    const valueLocal = valued?.marketValue ?? position.totalCost;
+    // Kur bilinmiyorsa maliyet karşılaştırılamaz; piyasa değeri yine de
+    // gösterilir, yalnızca K/Z boş kalır.
+    const valued =
+      livePrice && costInPriceCcy
+        ? valuePosition(
+            { ...position, currency: priceCurrency, totalCost: costInPriceCcy },
+            livePrice,
+          )
+        : null;
+
+    const valueLocal =
+      (livePrice ? livePrice.times(position.quantity) : null) ??
+      costInPriceCcy ??
+      position.totalCost;
+    const costLocal = costInPriceCcy ?? position.totalCost;
     const valueUsd = fx.converter.has(valueLocal.currency)
       ? fx.converter.toBase(valueLocal)
       : Money.zero("USD");
@@ -148,10 +170,17 @@ export async function loadPortfolio(): Promise<PortfolioView> {
       ? fx.converter.toBase(position.totalCost)
       : Money.zero("USD");
 
-    // Kur etkisi: varlık yabancı paraysa fiyat kârı ile kur kârını ayır
+    // Kur etkisi: varlık yabancı paraysa fiyat kârı ile kur kârını ayır.
+    //
+    // Maliyetin kayıtlı para birimi fiyatınkinden farklıysa ayrıştırma
+    // yapılmaz. attributeReturn maliyeti varlığın *alış anındaki* yerel
+    // değeriyle ister; bugünkü kurla çevrilmiş bir maliyet fiyat getirisini
+    // bozar — ki ayrıştırmanın tüm amacı o iki etkiyi ayırmaktır. Elimizde
+    // diller arası tarihsel kur olmadığı için uydurmak yerine atlıyoruz.
     let attribution: PositionView["attribution"] = null;
     if (
       valueLocal.currency !== "USD" &&
+      position.totalCost.currency === valueLocal.currency &&
       !position.totalCost.isZero() &&
       fx.converter.has(valueLocal.currency)
     ) {
@@ -203,7 +232,9 @@ export async function loadPortfolio(): Promise<PortfolioView> {
       priceBasis: q ? (q.stale ? "stale" : "live") : "none",
       priceAgeMs: q?.ageMs ?? null,
       changePct24h: q?.changePct24h ?? null,
-      costLocal: position.totalCost.toDb(),
+      // costLocal ve valueLocal aynı `currency` etiketiyle gösteriliyor —
+      // ikisinin de o para biriminde olması şart
+      costLocal: costLocal.toDb(),
       valueLocal: valueLocal.toDb(),
       unrealizedPnl: valued?.unrealizedPnl.toDb() ?? "0",
       returnRatio: valued?.returnRatio?.toFixed() ?? null,

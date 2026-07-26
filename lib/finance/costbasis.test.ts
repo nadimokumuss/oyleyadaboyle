@@ -176,4 +176,17 @@ describe("valuePosition", () => {
     expect(v.returnRatio).toBeNull();
     expect(v.marketValue.toDb()).toBe("0");
   });
+
+  // Regresyon: USD maliyetli bir pozisyon TRY kotasyonlu bir hisseye
+  // (BIST) bağlandığında portfoy sayfası çöküyordu. Sebebi, çağıranın
+  // maliyeti çevirmek yerine `withCurrency` ile yalnızca yeniden
+  // etiketlemesiydi — bu, Money'nin para birimi korumasını atlatıp
+  // anlamsız bir K/Z üretiyordu. valuePosition maliyeti fiyatla aynı
+  // para biriminde bekler ve aksi halde sessizce yanlış sayı vermez.
+  it("maliyet ile fiyat farklı para birimindeyse hata verir, sessizce yanlış hesaplamaz", () => {
+    const p = computePosition("a1", "USD", [
+      tx({ type: "buy", quantity: "10", amount: "1000" }),
+    ]);
+    expect(() => valuePosition(p, Money.of(150, "TRY"))).toThrow(/farklı para birimleri/);
+  });
 });
