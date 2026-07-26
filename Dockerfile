@@ -54,8 +54,12 @@ ENV NODE_ENV=production \
 RUN groupadd --system --gid 1001 nodejs \
     && useradd --system --uid 1001 --gid nodejs nextjs
 
-# Yalnızca çalışmak için gerekenler
-COPY --from=builder /app/public ./public
+# Yalnızca çalışmak için gerekenler.
+#
+# `public/` kopyalanmıyor: projede böyle bir klasör yok. Next.js şablonundan
+# kalma bu satır, olmayan bir yolu kopyalamaya çalıştığı için imaj derlemesini
+# durduruyordu. İleride statik dosya (favicon, ikon) eklenirse public/ klasörü
+# oluşturulup satır geri konmalı.
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
