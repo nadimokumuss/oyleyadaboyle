@@ -69,9 +69,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/file-uri-to-path ./n
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-# Veritabanının yaşayacağı yer — kalıcı disk buraya bağlanır
+# Veritabanının yaşayacağı yer — kalıcı disk buraya bağlanır.
+#
+# `VOLUME /data` bilerek yazılmadı: Railway bu komutu reddediyor, kalıcı
+# diski kendi arayüzünden bağlamayı bekliyor. Zaten bir işe de yaramıyordu —
+# docker-compose.yml diski `servet_data:/data` ile açıkça bağlıyor.
+# Klasörün önceden var ve nextjs'e ait olması yeterli.
 RUN mkdir -p /data && chown nextjs:nodejs /data
-VOLUME /data
 
 USER nextjs
 EXPOSE 3000
