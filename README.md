@@ -212,14 +212,20 @@ Panel Docker ile kalıcı diskli herhangi bir sunucuda çalışır.
 docker compose up -d --build
 ```
 
-Ücretsiz bir Oracle Cloud sunucusuna adım adım kurulum:
-**[DAGITIM.md](DAGITIM.md)**
+Adım adım kurulum — iki seçenek: **[DAGITIM.md](DAGITIM.md)**
 
-`Caddyfile` otomatik HTTPS alır; panel kendi portunu dışarıya açmaz,
-yalnızca ters vekil üzerinden erişilir.
+| Yol | Özet |
+|---|---|
+| **Railway** | Depoyu bağla, `/data` diskini ekle, biter. ~10 dk, ~5 $/ay |
+| **Oracle Cloud** | Kendi sunucunuz, süresiz ücretsiz. ~1 saat |
+
+Kendi sunucunuzda `Caddyfile` otomatik HTTPS alır; panel kendi portunu
+dışarıya açmaz, yalnızca ters vekil üzerinden erişilir. Railway'de bu işi
+platform üstlenir.
 
 > **Vercel gibi sunucusuz platformlar uygun değildir** — dosya sistemi
-> geçici olduğu için SQLite veritabanı her dağıtımda silinir.
+> geçici olduğu için SQLite veritabanı her dağıtımda silinir, ayrıca
+> SSE akışı fonksiyon ömrüne takılır.
 
 ---
 

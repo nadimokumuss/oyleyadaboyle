@@ -30,9 +30,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Derleme sırasında veritabanına dokunulmaz; sadece tipler ve paketleme
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+# Derleme sırasında veritabanına dokunulmaz; sadece tipler ve paketleme.
+#
+# SERVET_STANDALONE=1 şart: next.config.ts `output: "standalone"` seçeneğini
+# bu değişkene bağlıyor. Verilmezse .next/standalone hiç üretilmez ve
+# aşağıdaki COPY adımı imajı derlerken hata verir.
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    SERVET_STANDALONE=1
+RUN npm run build:docker
 
 # ---------- 3. Çalışma ----------
 FROM node:22-slim AS runner
@@ -72,7 +77,10 @@ USER nextjs
 EXPOSE 3000
 
 # Sağlık kontrolü: uygulama ayakta mı?
+#
+# Port sabit yazılmaz — Railway gibi platformlar PORT'u kendileri atar,
+# 3000'e sabitlenirse sağlık kontrolü yanlış portu yoklar.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
