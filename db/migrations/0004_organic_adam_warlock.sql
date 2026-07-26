@@ -1,0 +1,1 @@
+DROP TABLE `holdings_cache`;

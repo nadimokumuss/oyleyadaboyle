@@ -28,7 +28,7 @@ const DISPLAY_DECIMALS: Record<string, number> = {
   ETH: 8,
 };
 
-export function displayDecimals(currency: CurrencyCode): number {
+function displayDecimals(currency: CurrencyCode): number {
   return DISPLAY_DECIMALS[currency.toUpperCase()] ?? 2;
 }
 
@@ -304,7 +304,7 @@ const SYMBOLS: Record<string, string> = {
   AED: "AED",
 };
 
-export function currencySymbol(currency: CurrencyCode): string {
+function currencySymbol(currency: CurrencyCode): string {
   return SYMBOLS[currency.toUpperCase()] ?? currency.toUpperCase();
 }
 

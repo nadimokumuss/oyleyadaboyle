@@ -105,21 +105,14 @@ export const transactions = sqliteTable(
   ],
 );
 
-/** transactions'tan türetilmiş cache. Her an silinip yeniden üretilebilir. */
-export const holdingsCache = sqliteTable("holdings_cache", {
-  assetId: text("asset_id")
-    .primaryKey()
-    .references(() => assets.id, { onDelete: "cascade" }),
-  quantity: text("quantity").notNull(),
-  wacCost: text("wac_cost").notNull(), // birim başına ağırlıklı ortalama maliyet
-  totalCost: text("total_cost").notNull(),
-  fifoLots: text("fifo_lots", { mode: "json" })
-    .$type<Array<{ qty: string; price: string; date: string }>>()
-    .default([]),
-  realizedPnl: text("realized_pnl").notNull().default("0"),
-  currency: text("currency").notNull(),
-  lastComputedAt: text("last_computed_at").notNull(),
-});
+/*
+ * Not: eskiden burada bir `holdings_cache` tablosu vardı — transactions'tan
+ * türetilmiş bir önbellek. Hiç okunmadı ve hiç yazılmadı: miktar, ağırlıklı
+ * ortalama maliyet ve FIFO lot'ları her istekte
+ * lib/finance/costbasis.ts:computePosition ile işlemlerden yeniden
+ * hesaplanıyor. Önbellek olmadan da yeterince hızlı olduğu için tablo
+ * düşürüldü; geçmişte kalan boş tabloyu silmek de bir göç gerektirdi.
+ */
 
 /* ------------------------------------------------------------------ */
 /* Varlık türü uzantıları                                              */

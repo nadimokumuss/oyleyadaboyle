@@ -2,13 +2,13 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
-  assets, transactions, deposits, properties, vehicles, ventures, accounts,
+  assets, transactions, deposits, properties, vehicles, ventures,
 } from "@/db/schema";
 import Decimal from "decimal.js";
 import { Money } from "@/lib/money";
 import type {
   CashInput, PositionInput, DepositInput, PropertyInput,
-  VehicleInput, VentureInput, AccountInput, TransactionInput,
+  VehicleInput, VentureInput, TransactionInput,
 } from "@/lib/schemas";
 import { historicalUsdRate } from "@/lib/market/fxStore";
 import { applyFunding, clearFundingFor } from "./funding";
@@ -39,29 +39,6 @@ async function resolveFxRate(
   } catch {
     return null;
   }
-}
-
-/* ------------------------------------------------------------------ */
-/* Hesap                                                               */
-/* ------------------------------------------------------------------ */
-
-export function saveAccount(input: AccountInput): string {
-  const id = input.id ?? randomUUID();
-  const values = {
-    institution: input.institution,
-    country: input.country,
-    type: input.type,
-    currency: input.currency,
-    note: input.note,
-    updatedAt: now(),
-  };
-
-  if (input.id) {
-    db.update(accounts).set(values).where(eq(accounts.id, input.id)).run();
-  } else {
-    db.insert(accounts).values({ id, ...values, createdAt: now() }).run();
-  }
-  return id;
 }
 
 /* ------------------------------------------------------------------ */

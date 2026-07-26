@@ -71,8 +71,6 @@ export function checkPassword(value: string): PasswordCheck {
   return { ok: errors.length === 0, errors, strength };
 }
 
-export const STRENGTH_LABEL = ["Çok zayıf", "Zayıf", "Orta", "İyi", "Güçlü"];
-
 /* ------------------------------------------------------------------ */
 /* Kalıcı giriş denemesi kaydı                                         */
 /* ------------------------------------------------------------------ */

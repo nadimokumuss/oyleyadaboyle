@@ -15,7 +15,7 @@ import { computeNetWorth, type NetWorth } from "@/lib/valuation";
  * kayıt güncellenir, çoğalmaz.
  */
 
-export async function captureSnapshot(nw?: NetWorth): Promise<void> {
+async function captureSnapshot(nw?: NetWorth): Promise<void> {
   const netWorth = nw ?? (await computeNetWorth());
 
   // Kur veya fiyatlar bayatsa anlık görüntü almayız — bayat veriyi
@@ -57,19 +57,6 @@ export function loadSnapshots(limit = 365): SnapshotPoint[] {
     .orderBy(snapshots.date)
     .limit(limit)
     .all();
-}
-
-/** Belirli bir gün öncesine göre değişim. Kayıt yoksa null. */
-export function changeSince(days: number, currentUsd: string): string | null {
-  const target = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
-  const points = loadSnapshots();
-  if (points.length === 0) return null;
-
-  // Hedef tarihe eşit veya ondan önceki en yakın kayıt
-  const past = [...points].reverse().find((p) => p.date <= target);
-  if (!past) return null;
-
-  return (Number(currentUsd) - Number(past.totalUsd)).toString();
 }
 
 let lastCaptureDate: string | null = null;

@@ -204,29 +204,9 @@ function sign(payload: string): string {
 
 export const SESSION_MAX_AGE_SECONDS = SESSION_TTL_MS / 1000;
 
-/* ------------------------------------------------------------------ */
-/* Kaba kuvvet yavaşlatma                                              */
-/* ------------------------------------------------------------------ */
-
-let failedAttempts = 0;
-let lockedUntil = 0;
-
-export function registerFailedAttempt(): void {
-  failedAttempts++;
-  if (failedAttempts >= 5) {
-    // 5. denemeden sonra katlanarak artan bekleme, tavan 5 dakika
-    const waitMs = Math.min(2 ** (failedAttempts - 4) * 1000, 5 * 60_000);
-    lockedUntil = Date.now() + waitMs;
-  }
-}
-
-export function clearFailedAttempts(): void {
-  failedAttempts = 0;
-  lockedUntil = 0;
-}
-
-/** Kilitliyse kalan saniye, değilse 0. */
-export function lockRemainingSeconds(): number {
-  if (Date.now() >= lockedUntil) return 0;
-  return Math.ceil((lockedUntil - Date.now()) / 1000);
-}
+/*
+ * Kaba kuvvet koruması burada değil, lib/security.ts'te:
+ * recordAttempt / checkLock / clearAttempts. Oradaki sürüm denemeleri
+ * veritabanına yazar ve IP bazlı çalışır, yani sunucu yeniden başladığında
+ * sayaç sıfırlanmaz. Buradaki bellek içi sürüm onunla değiştirildi.
+ */

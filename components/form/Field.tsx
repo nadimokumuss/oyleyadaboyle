@@ -178,7 +178,7 @@ function sanitize(value: string): string {
 }
 
 /** "1.234.567,89" → "1234567.89" */
-export function parseTr(value: string): string {
+function parseTr(value: string): string {
   if (!value) return "";
   const cleaned = value.replace(/\./g, "").replace(",", ".");
   return /^-?\d*\.?\d*$/.test(cleaned) ? cleaned : "";
@@ -272,7 +272,7 @@ export function PercentInput({
 /* Para birimi ve tarih                                                */
 /* ------------------------------------------------------------------ */
 
-export const CURRENCIES = [
+const CURRENCIES = [
   "USD", "EUR", "TRY", "GBP", "CHF", "AED", "JPY", "CAD", "AUD",
 ] as const;
 

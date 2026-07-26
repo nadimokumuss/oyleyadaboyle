@@ -29,7 +29,7 @@ const INDEX_BY_COUNTRY: Record<string, string> = {
  * birleşik karaktere dönüşür). Bu yüzden "İstanbul" düz bir
  * /istanbul/i kalıbıyla eşleşmez.
  */
-export function normalizeText(value: string): string {
+function normalizeText(value: string): string {
   return value
     .replace(/İ/g, "I")
     .replace(/ı/g, "i")
@@ -54,22 +54,3 @@ export function resolveIndexKey(city: string, countryCode: string): string | nul
   return INDEX_BY_COUNTRY[cc] ?? null;
 }
 
-export const COUNTRY_NAMES: Record<string, string> = {
-  TR: "Türkiye",
-  US: "ABD",
-  PT: "Portekiz",
-  AE: "BAE",
-  DE: "Almanya",
-  GB: "Birleşik Krallık",
-  FR: "Fransa",
-  ES: "İspanya",
-  IT: "İtalya",
-  NL: "Hollanda",
-  CH: "İsviçre",
-  GR: "Yunanistan",
-};
-
-export function countryName(code: string | null | undefined): string {
-  if (!code) return "bilinmiyor";
-  return COUNTRY_NAMES[code.toUpperCase()] ?? code.toUpperCase();
-}

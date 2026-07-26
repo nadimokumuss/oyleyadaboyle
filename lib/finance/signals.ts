@@ -1,4 +1,3 @@
-import Decimal from "decimal.js";
 import { toDecimal } from "@/lib/money";
 import { volatility, maxDrawdown, toReturns } from "./metrics";
 
@@ -331,13 +330,3 @@ export function scoreToPercent(score: number): number {
   return Math.round(((toDecimal(score).toNumber() + 1) / 2) * 100);
 }
 
-export function scoreDirection(score: number): SignalDirection {
-  if (score > 0.2) return "positive";
-  if (score < -0.2) return "negative";
-  return "neutral";
-}
-
-/** Decimal döndüren yardımcı — arayüz biçimlendirmesi için. */
-export function scoreAsDecimal(score: number): Decimal {
-  return new Decimal(score);
-}

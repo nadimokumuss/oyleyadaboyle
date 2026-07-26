@@ -110,7 +110,7 @@ const name = z.string().trim().min(1, "İsim zorunlu").max(120, "İsim çok uzun
 const note = z.string().trim().max(1000).optional().or(z.literal("")).transform((v) => v || null);
 
 /** Sahip olunan mu, almayı planlanan mı? */
-export const assetStatus = z.enum(["active", "planned"]);
+const assetStatus = z.enum(["active", "planned"]);
 
 /* ------------------------------------------------------------------ */
 /* Ödeme kaynağı — her alım formunda                                   */
@@ -127,7 +127,7 @@ const optionalId = z
  * Varlık edinildiğinde para nereden çıktı?
  * Formlarda `funding*` önekli alanlar olarak gelir.
  */
-export const fundingFields = {
+const fundingFields = {
   fundingMode: z.enum(["cash", "external", "loan"]).default("cash"),
   fundingCashAssetId: optionalId,
   fundingDownPayment: z
@@ -184,7 +184,7 @@ const liquidity = z.enum(["instant", "days", "weeks", "months", "illiquid"]);
 /* Hesap                                                               */
 /* ------------------------------------------------------------------ */
 
-export const accountSchema = z.object({
+const accountSchema = z.object({
   id: z.string().uuid().optional(),
   institution: name,
   country,
@@ -422,7 +422,7 @@ export const settingsSchema = z.object({
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;
 
-export const targetSchema = z.object({
+const targetSchema = z.object({
   dimension: z.enum(["kind", "country", "currency", "asset"]),
   key: z.string().trim().min(1),
   targetPct: decimalString({ min: 0, max: 1, label: "Hedef oran" }),

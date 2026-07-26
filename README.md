@@ -29,7 +29,8 @@ varlıklarınızı formlardan siz eklersiniz.
 | `npm run dev` | Geliştirme modunda çalıştırır |
 | `npm run build` / `npm start` | Üretim derlemesi ve çalıştırma |
 | `npm run typecheck` | TypeScript denetimi |
-| `npm test` | Finans çekirdeği testleri (357 test) |
+| `npm test` | Finans çekirdeği testleri (358 test) |
+| `npm run db:generate` | Şema değişikliğinden yeni göç dosyası üretir |
 | `npm run db:migrate` | Şema değişikliklerini uygular |
 | `npm run db:seed` | Örnek senaryo yükler — **veritabanı doluysa reddeder** |
 | `npm run db:seed -- --force` | Mevcut veriyi silip demo yükler |
@@ -155,6 +156,15 @@ kazanç %2'dir. Panel bunu her yerde gösterir.
 kaybettiriyor olabilir. Alım kaydedilirken o günün kuru saklanır, böylece
 ayrıştırma gerçek tarihsel kurla yapılır.
 
+**İki tutar ancak aynı para birimindeyse karşılaştırılır.** `Money` sınıfı
+toplama, çıkarma ve oranlamada para birimi eşitliğini zorunlu tutar; farklı
+birimler sessizce toplanamaz. Çevrim yalnızca `lib/fx.ts` üzerinden yapılır.
+`Money.withCurrency` **yalnızca etiketi** değiştirir, tutarı çevirmez —
+hesaplamada asla kullanılmamalıdır. Bu kural bir kez çiğnendiğinde (bir
+varlığın kayıtlı para birimi ile kotasyonunun geldiği para birimi farklı
+olduğunda) USD maliyet TRY piyasa değerinden çıkarılıp anlamsız bir
+kâr/zarar üretilmişti; koruma tam da bunun için var.
+
 **Planlanan varlık servete sayılmaz.** Sahip olmadığınız bir evi servetinize
 eklemek, kendinizi olduğunuzdan zengin sanmanıza yol açar.
 
@@ -242,24 +252,58 @@ Bu değerler **temsilîdir**; resmî kaynaklardan güncellenmelidir:
 
 ---
 
+## Bilinen sınırlar
+
+**Tek kopya çalışır.** Veritabanı tek bir SQLite dosyasıdır. İkinci bir kopya
+aynı diske yazarsa veri bozulur — bu yüzden `railway.json` içinde
+`numReplicas: 1` sabitlenmiştir. Yatay ölçekleme istiyorsanız önce veritabanı
+katmanı değişmelidir.
+
+**Sunucusuz platformlar uygun değildir.** Vercel gibi ortamlarda dosya sistemi
+geçicidir; veritabanı her dağıtımda silinir. Ayrıca `app/api/stream/route.ts`
+süresiz açık bir SSE bağlantısı tutar, sunucusuz fonksiyon ömrü buna yetmez.
+Ayrıntı: [DAGITIM.md](DAGITIM.md).
+
+**BIST verisi ~15 dakika gecikmelidir.** Yahoo Finance'in anahtarsız ucundan
+gelir; arayüz gecikmeyi rozetle belirtir.
+
+**Fiyat sağlayıcıları anahtarsızdır.** Yahoo ve CoinGecko'nun herkese açık
+uçları kullanılır. Hız sınırına takılırsa panel son bilinen fiyatı "bayat"
+işaretiyle gösterir — uydurma fiyat üretmez.
+
+**Arayüz testi yoktur.** Testler finans çekirdeğini kapsar; sayfalar ve
+formlar elle denenir.
+
+---
+
 ## Proje yapısı
 
 ```
-app/           Sayfalar, API uçları, Server Actions
-  (panel)/     Oturum gerektiren sayfalar
+app/
+  (panel)/     Oturum gerektiren sayfalar (komuta ekranı, portföy, plan…)
+  actions/     Server Actions — yazma işlemlerinin girişi
+  api/         SSE akışı, fiyat/kur uçları, arama, dışa aktarma, sağlık
+  giris/       Giriş; kurulum/ ilk kurulum sihirbazı
 lib/
-  money.ts     Para aritmetiğinin tek kaynağı
-  finance/     Faiz, maliyet, amortisman, kredi, sinyal motorları
-  market/      Fiyat sağlayıcıları, cache, hız sınırlayıcı
+  money.ts     Para aritmetiğinin tek kaynağı (birim güvenliği burada)
+  fx.ts        Kur çevrimi ve getiri ayrıştırması
+  finance/     Faiz, maliyet esası, amortisman, kredi, sinyal motorları
+  market/      Fiyat sağlayıcıları, önbellek, hız sınırlayıcı
   engine/      Fırsat kuralları, Monte Carlo, dağılım önerisi
-  services/    Yazma katmanı (finansman, satış, denetim)
+  services/    Yazma katmanı (finansman, satış, içe aktarma, denetim)
   valuation.ts Net servet — tek doğruluk kaynağı
-components/    Arayüz; form/ ve pickers/ alt klasörleri
+  auth.ts      Oturum ve ikinci faktör; security.ts kaba kuvvet koruması
+components/    Arayüz; form/ (girdi öğeleri), forms/ (tam formlar), pickers/
 db/            Şema, göçler, demo senaryo, referans veriler
 ```
 
 Testler kaynak dosyaların yanında (`*.test.ts`): para çekirdeği, finans
-formülleri ve doğrulama şemaları kapsanır. Arayüz testi yoktur.
+formülleri ve doğrulama şemaları kapsanır.
+
+**Şema değiştirirken:** `db/schema.ts` düzenlenir → `npm run db:generate`
+göç dosyasını üretir → üretilen SQL okunarak doğrulanır → `npm run db:migrate`
+uygular. Sunucuda göçler `docker-entrypoint.sh` ile açılışta kendiliğinden
+çalışır.
 
 ---
 

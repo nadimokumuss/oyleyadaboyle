@@ -150,8 +150,3 @@ async function fetchClass(
   }
 }
 
-/** Tek sembol için kısayol. */
-export async function getQuote(symbol: string): Promise<QuoteResult | null> {
-  const [q] = await getQuotes([symbol]);
-  return q ?? null;
-}

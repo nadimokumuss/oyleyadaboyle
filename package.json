@@ -11,16 +11,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx db/migrate.ts",
     "db:seed": "tsx db/seed.ts"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.62.0",
-    "@types/leaflet": "^1.9.21",
-    "@types/qrcode": "^1.5.6",
     "better-sqlite3": "^11.7.0",
     "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
     "decimal.js": "^10.4.3",
     "drizzle-orm": "^0.38.0",
     "leaflet": "^1.9.4",
@@ -29,16 +26,16 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-leaflet": "^5.0.0",
-    "recharts": "^2.15.0",
     "server-only": "^0.0.1",
     "tailwind-merge": "^3.6.0",
-    "zod": "^4.4.3",
-    "zustand": "^5.0.2"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
     "@types/better-sqlite3": "^7.6.12",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^22.10.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "drizzle-kit": "^0.30.0",

@@ -20,7 +20,7 @@ import { SEVERITY_RANK, type Opportunity, type PortfolioState } from "./types";
  * kabul edilemez.
  */
 
-export async function buildState(now = new Date()): Promise<PortfolioState> {
+async function buildState(now = new Date()): Promise<PortfolioState> {
   const [netWorth, portfolio, properties, vehicles, ventures, cashflow] =
     await Promise.all([
       computeNetWorth(),
@@ -78,7 +78,7 @@ export async function scan(now = new Date()): Promise<ScanResult> {
 }
 
 /** Durum hazırsa doğrudan tarar — test edilebilir saf kısım. */
-export function scanState(state: PortfolioState): ScanResult {
+function scanState(state: PortfolioState): ScanResult {
   const opportunities: Opportunity[] = [];
   const failedRules: Array<{ key: string; message: string }> = [];
 

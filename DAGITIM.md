@@ -65,6 +65,19 @@ ekleyip DNS'te bir `CNAME` kaydı gösterirsiniz.
 Adrese girin → kurulum sihirbazı çıkar → parolanızı belirleyin, ana para
 biriminizi ve yaşam giderinizi girin. Panel boş başlar.
 
+## 6. Kalıcı diski doğrulayın — atlamayın
+
+**Disk bağlanmamış olsa da dağıtım "başarılı" görünür.** Fark ancak veri
+kaybettiğinizde anlaşılır, o da genellikle geç olur. Bir kez test edin:
+
+1. Panele girin ve bir varlık ekleyin (örneğin küçük bir nakit hesabı)
+2. Railway'de servise **Redeploy** deyin
+3. Açılınca varlık **hâlâ duruyorsa** disk doğru bağlanmıştır
+
+Varlık kaybolduysa `/data` bağlaması eksik ya da yanlış yolda.
+`SERVET_DB_PATH` `Dockerfile` içinde `/data/servet.db` olduğu için bağlama
+yolunun tam olarak `/data` olması gerekir.
+
 ## Bilinmesi gerekenler
 
 - **Kopya sayısı 1 kalmalı.** `railway.json` içinde `numReplicas: 1` bunun
@@ -269,30 +282,17 @@ docker compose up -d --build
 
 ---
 
-## Sorun giderme
+## Sorun giderme (Oracle'a özgü)
+
+Derleme ve çalışma zamanı hataları için aşağıdaki
+[ortak bölüme](#i̇maj-derleme-hataları) bakın.
 
 | Belirti | Sebep ve çözüm |
 |---|---|
 | Sayfa açılmıyor | Oracle güvenlik listesinde 80/443 açık mı? `iptables` kuralları kaydedildi mi? |
 | Sertifika hatası | DNS A kaydı sunucunun IP'sine yayılmış mı? `dig ALAN_ADINIZ` ile kontrol edin |
 | `out of capacity` | ARM stoğu geçici olarak yok; başka bölge veya birkaç saat sonra deneyin |
-| Derleme çok uzun | Normal — ARM'de `better-sqlite3` kaynaktan derleniyor, ilk seferde 5–10 dk |
 | Kendinizi IP kısıtlamasıyla kilitlediniz | `docker compose exec servet node -e "..."` yerine: sunucuda `sqlite3` ile `UPDATE settings SET allowed_ips = NULL;` |
-
----
-
-## Güvenlik kontrol listesi
-
-- [ ] Parola en az 12 karakter, tercihen bir cümle
-- [ ] İki faktörlü doğrulama açık
-- [ ] Kurtarma kodları güvenli bir yerde
-- [ ] HTTPS çalışıyor (adres çubuğunda kilit simgesi)
-- [ ] SSH'a yalnızca anahtarla girilebiliyor (Oracle varsayılanı böyle)
-- [ ] Yedekleme alışkanlığı kuruldu
-
-Panel giriş denemelerini kaydeder; **Ayarlar → Giriş kayıtları**'nda
-görürsünüz. Tanımadığınız bir IP'den denemeler varsa parolanızı değiştirin
-ve IP kısıtlamasını açın.
 
 ---
 
@@ -303,3 +303,42 @@ Tek olası masraf alan adı (isteğe bağlı, yılda birkaç dolar).
 
 Hesabınızı "Pay As You Go"a yükseltmeyin — Always Free kaynakları yine
 ücretsiz kalır ama yanlışlıkla ücretli bir kaynak açma riski doğar.
+
+---
+
+# Her iki yol için ortak
+
+## İmaj derleme hataları
+
+İkisi de aynı `Dockerfile`'ı kullandığı için bu hatalar her iki yolda da
+aynı şekilde çıkar. Hepsi bir kez yaşandı ve düzeltildi — tekrar ederse
+sebebi burada:
+
+| Hata | Sebep |
+|---|---|
+| `"/app/.next/standalone": not found` | Derleme `npm run build` ile yapılmış. `next.config.ts` standalone çıktısını `SERVET_STANDALONE=1`'e bağlar; `npm run build:docker` çağrılmalı. |
+| `"/app/public": not found` | Projede `public/` klasörü yok. Statik dosya eklenecekse klasör oluşturulup `Dockerfile`'daki `COPY` satırı geri konmalı. |
+| `docker VOLUME ... is not supported, use Railway Volumes` | Railway `VOLUME` komutunu reddeder. `Dockerfile`'da bilerek yok; kalıcı disk Railway arayüzünden bağlanır. |
+| Derleme çok uzun (5–10 dk) | Normal. `better-sqlite3` yerel bir C++ eklentisi ve kaynaktan derleniyor. |
+
+## Çalışma zamanı
+
+| Belirti | Sebep ve çözüm |
+|---|---|
+| `SQLITE_CANTOPEN` / `EACCES /data/servet.db` | Kalıcı disk bağlanmamış ya da yazma izni yok. Bağlama yolu tam olarak `/data` olmalı. |
+| Her dağıtımda veri sıfırlanıyor | Disk hiç bağlanmamış; veritabanı konteynerin geçici diskine yazılıyor. Yukarıdaki doğrulama adımını uygulayın. |
+| Sayfa "Application error" veriyor | Sunucu istisnası. Railway → **Observability** / **View Logs**'ta `Error:` satırını ve `digest` numarasını arayın; ekrandaki digest ile eşleşen kayıt gerçek yığın izini verir. |
+
+## Güvenlik kontrol listesi
+
+- [ ] Parola en az 12 karakter, tercihen bir cümle
+- [ ] İki faktörlü doğrulama açık
+- [ ] Kurtarma kodları güvenli bir yerde
+- [ ] HTTPS çalışıyor (adres çubuğunda kilit simgesi)
+- [ ] Yedekleme alışkanlığı kuruldu
+- [ ] *(Kendi sunucunuzsa)* SSH'a yalnızca anahtarla girilebiliyor
+
+Panel giriş denemelerini kaydeder; **Ayarlar → Giriş kayıtları**'nda
+görürsünüz. Tanımadığınız bir IP'den denemeler varsa parolanızı değiştirin
+ve IP kısıtlamasını açın. Kaba kuvvet koruması IP bazlıdır ve denemeleri
+veritabanına yazar — sunucu yeniden başlasa da sayaç sıfırlanmaz.

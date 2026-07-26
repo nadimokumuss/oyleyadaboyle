@@ -141,14 +141,3 @@ export function loadAssetDefaults(id: string, kind: FormKind): any {
       return base;
   }
 }
-
-/** Nakit varlıkları — planlanan alımın hangi hesaptan düşüleceğini seçmek için. */
-export function listCashAssets() {
-  return db
-    .select()
-    .from(assets)
-    .where(eq(assets.kind, "cash"))
-    .all()
-    .filter((a) => a.status === "active")
-    .map((a) => ({ id: a.id, name: a.name, currency: a.currency }));
-}

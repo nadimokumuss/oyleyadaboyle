@@ -8,7 +8,7 @@ import { Money, toDecimal, type CurrencyCode } from "./money";
  * Tablo USD bazlıdır: rates["TRY"] = 1 USD kaç TL.
  */
 
-export const BASE_CURRENCY: CurrencyCode = "USD";
+const BASE_CURRENCY: CurrencyCode = "USD";
 
 /** symbol → 1 USD karşılığı. USD'nin kendisi her zaman 1. */
 export type RateTable = Readonly<Record<string, string | number | Decimal>>;
