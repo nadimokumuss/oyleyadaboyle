@@ -16,6 +16,39 @@ import {
 const id = () => randomUUID();
 const now = new Date().toISOString();
 
+/**
+ * GÜVENLİK KAPISI
+ *
+ * Bu betik tüm verinizi siler. Yanlışlıkla çalıştırılması gerçek bir
+ * kayba yol açtığı için artık iki koşul gerekiyor:
+ *
+ *   1. Veritabanı boş olmalı, VEYA
+ *   2. `--force` bayrağı verilmiş olmalı
+ *
+ * Dolu bir veritabanına yanlışlıkla demo yüklemek artık mümkün değil.
+ */
+function guard(): void {
+  const existing = db.select().from(assets).all();
+  const force = process.argv.includes("--force");
+
+  if (existing.length === 0) return;
+
+  if (!force) {
+    console.error(
+      `\n✗ Veritabanında ${existing.length} varlık var ve bu betik hepsini siler.\n` +
+        `\n  Verilerinizi kaybetmeden önce yedek alın:\n` +
+        `    cp data/servet.db "yedek-$(date +%F).db"\n` +
+        `\n  Yine de demo yüklemek istiyorsanız:\n` +
+        `    npm run db:seed -- --force\n`,
+    );
+    process.exit(1);
+  }
+
+  console.warn(
+    `⚠ --force verildi: ${existing.length} varlık siliniyor.\n`,
+  );
+}
+
 function reset() {
   // Sıra önemli: yabancı anahtar kısıtları yüzünden çocuklar önce
   db.delete(transactions).run();
@@ -30,7 +63,96 @@ function reset() {
   db.delete(settings).run();
 }
 
+/**
+ * Demo alımlarının finansmanı.
+ *
+ * Panelin temel kuralı "her varlık ya nakitten ya krediden gelir".
+ * Demo bunu ihlal ederse, kullanıcı panele girer girmez tutarsız bir
+ * tablo görür ve denetim uyarı verir. Bu yüzden demo da kurala uyar:
+ * önce para birimi başına nakit hesabı açılır, sonra her alım oradan
+ * düşülür.
+ */
+const purchases: Array<{ assetId: string; amount: string; currency: string }> = [];
+
+function fund(assetId: string, amount: string, currency: string): void {
+  purchases.push({ assetId, amount, currency });
+}
+
+/** Alımları karşılayacak nakit hesaplarını açar ve çıkışları yazar. */
+function createFundingAccounts(accountByCurrency: Record<string, string>): void {
+  const totals = new Map<string, number>();
+  for (const p of purchases) {
+    totals.set(p.currency, (totals.get(p.currency) ?? 0) + Number(p.amount));
+  }
+
+  const cashAssetByCurrency = new Map<string, string>();
+
+  for (const [currency, spent] of totals) {
+    // Alımlardan sonra bir miktar serbest nakit kalsın — fırsat
+    // motorunun "atıl nakit" kuralı da böylece görünür olur
+    const leftover = currency === "USD" ? 620_000 : spent * 0.05;
+    const cashId = id();
+    cashAssetByCurrency.set(currency, cashId);
+
+    db.insert(assets).values({
+      id: cashId,
+      kind: "cash",
+      name: `Serbest Nakit (${currency})`,
+      symbol: null,
+      accountId: accountByCurrency[currency] ?? null,
+      currency,
+      country: "TR",
+      status: "active",
+      liquidity: "instant",
+      tags: [],
+      note: null,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    db.insert(transactions).values({
+      id: id(),
+      assetId: cashId,
+      type: "deposit_in",
+      date: "2026-01-02",
+      quantity: null,
+      pricePerUnit: null,
+      amount: String(Math.round(spent + leftover)),
+      currency,
+      fxRateToUsd: currency === "USD" ? "1" : null,
+      fee: null,
+      note: "Başlangıç sermayesi",
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+  }
+
+  // Her alım için nakit çıkışı
+  for (const p of purchases) {
+    const cashId = cashAssetByCurrency.get(p.currency);
+    if (!cashId) continue;
+
+    db.insert(transactions).values({
+      id: id(),
+      assetId: cashId,
+      type: "withdraw",
+      date: "2026-01-03",
+      quantity: null,
+      pricePerUnit: null,
+      amount: p.amount,
+      currency: p.currency,
+      fxRateToUsd: p.currency === "USD" ? "1" : null,
+      fee: null,
+      // applyFunding ile aynı biçim — denetim bunu "finanse edilmiş" sayar
+      note: `FUNDING:${p.assetId}`,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+  }
+}
+
 function seed() {
+  guard();
   reset();
 
   /* --- Ayarlar --- */
@@ -92,6 +214,7 @@ function seed() {
       quantity: m.qty, pricePerUnit: null, amount: m.cost, currency,
       fxRateToUsd: null, fee: null, note: "İlk alım", createdAt: now, updatedAt: now,
     }).run();
+    fund(assetId, m.cost, currency);
   }
 
   /* --- Mevduat --- */
@@ -113,6 +236,7 @@ function seed() {
       startDate: d.start, maturityDate: d.maturity,
       withholdingRateOverride: null, autoRenew: false,
     }).run();
+    fund(assetId, d.principal, d.currency);
   }
 
   /* --- Gayrimenkul --- */
@@ -139,6 +263,7 @@ function seed() {
       monthlyRent: p.rent, occupancyRate: "0.92",
       monthlyCosts: { hoa: String(Math.round(Number(p.rent) * 0.08)), tax: String(Math.round(Number(p.rent) * 0.05)) },
     }).run();
+    fund(assetId, String(Math.round(Number(p.price) * 1.04)), p.currency);
   }
 
   /* --- Araçlar --- */
@@ -166,6 +291,7 @@ function seed() {
         fuel: String(Math.round(Number(c.price) * 0.008)),
       },
     }).run();
+    fund(assetId, c.price, c.currency);
   }
 
   /* --- Girişimler --- */
@@ -188,21 +314,11 @@ function seed() {
       monthlyRevenue: s.rev, monthlyBurn: s.burn, cashOnHand: s.cash,
       stage: s.stage,
     }).run();
+    fund(assetId, s.called, s.currency);
   }
 
-  /* --- Serbest nakit (fırsat motorunun "atıl nakit" kuralını tetikler) --- */
-  const cashId = id();
-  db.insert(assets).values({
-    id: cashId, kind: "cash", name: "Serbest Nakit (USD)", symbol: null,
-    accountId: accCash, currency: "USD", country: "TR", status: "active",
-    liquidity: "instant", tags: [], note: null, createdAt: now, updatedAt: now,
-  }).run();
-  db.insert(transactions).values({
-    id: id(), assetId: cashId, type: "deposit_in", date: "2026-07-05",
-    quantity: null, pricePerUnit: null, amount: "620000", currency: "USD",
-    fxRateToUsd: "1", fee: null, note: "Satıştan kalan bakiye",
-    createdAt: now, updatedAt: now,
-  }).run();
+  /* --- Nakit hesapları ve alımların finansmanı --- */
+  createFundingAccounts({ TRY: accGaranti, USD: accCash, EUR: accCash });
 
   /* --- Hedef dağılım (yeniden dengeleme kuralı için) --- */
   db.insert(targets).values([
