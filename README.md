@@ -29,7 +29,8 @@ varlıklarınızı formlardan siz eklersiniz.
 | `npm run dev` | Geliştirme modunda çalıştırır |
 | `npm run build` / `npm start` | Üretim derlemesi ve çalıştırma |
 | `npm run typecheck` | TypeScript denetimi |
-| `npm test` | Finans çekirdeği ve otomasyon testleri (547 test) |
+| `npm test` | Finans çekirdeği ve otomasyon testleri (547 test, ~1,5 sn) |
+| `npm run test:smoke` | Rota duman testi — sunucuyu açar, her sayfayı render eder (~25 sn) |
 | `npm run db:generate` | Şema değişikliğinden yeni göç dosyası üretir |
 | `npm run db:migrate` | Şema değişikliklerini uygular |
 | `npm run db:seed` | Örnek senaryo yükler — **veritabanı doluysa reddeder** |
@@ -370,8 +371,9 @@ gelir; arayüz gecikmeyi rozetle belirtir.
 uçları kullanılır. Hız sınırına takılırsa panel son bilinen fiyatı "bayat"
 işaretiyle gösterir — uydurma fiyat üretmez.
 
-**Arayüz testi yoktur.** Testler finans çekirdeğini kapsar; sayfalar ve
-formlar elle denenir.
+**Arayüz testi sınırlıdır.** `npm run test:smoke` her sayfanın gerçekten
+render edildiğini doğrular ama içeriğine bakmaz; form akışları ve görsel
+düzen hâlâ elle denenir.
 
 ---
 
@@ -409,6 +411,18 @@ db/            Şema, göçler, demo senaryo, referans veriler
 
 Testler kaynak dosyaların yanında (`*.test.ts`): para çekirdeği, finans
 formülleri ve doğrulama şemaları kapsanır.
+
+**Duman testi ayrıdır** (`smoke/`). Uygulamayı gerçekten ayağa kaldırır,
+geçici bir veritabanında oturum açar ve `app/(panel)` altındaki **her
+sayfayı render ettirir**. Sayfalar dosya sisteminden keşfedilir, yani yeni
+bir sayfa eklendiğinde listeye eklemeyi unutsanız da kapsama girer.
+
+Neden var: bir kez, zamanlayıcıyı `instrumentation.ts` üzerinden başlatan
+bir değişiklik tüm sayfaları 500'e düşürdü ve commit'e girdi. Ne `npm test`
+ne `npm run build` yakaladı — ikisi de "başarılı" dedi, çünkü hata ancak
+istek geldiğinde ortaya çıkıyordu. Yalnızca 307 (giriş yönlendirmesi)
+beklemek de yetmez: yönlendirme, sayfa bileşeninin hiç çalışmadığı
+anlamına gelir. Bu yüzden test gerçek bir oturum kurar.
 
 **Şema değiştirirken:** `db/schema.ts` düzenlenir → `npm run db:generate`
 göç dosyasını üretir → üretilen SQL okunarak doğrulanır → `npm run db:migrate`
