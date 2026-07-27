@@ -7,6 +7,7 @@ const config: NextConfig = {
   // Docker imajı için: bağımlılıkları tek klasöre toplar, imaj küçülür
   output: process.env.SERVET_STANDALONE === "1" ? "standalone" : undefined,
 
+
   // Güvenlik başlıkları — internete açık kurulumda önemli
   async headers() {
     return [

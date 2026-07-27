@@ -56,10 +56,11 @@ RUN groupadd --system --gid 1001 nodejs \
 
 # Yalnızca çalışmak için gerekenler.
 #
-# `public/` kopyalanmıyor: projede böyle bir klasör yok. Next.js şablonundan
-# kalma bu satır, olmayan bir yolu kopyalamaya çalıştığı için imaj derlemesini
-# durduruyordu. İleride statik dosya (favicon, ikon) eklenirse public/ klasörü
-# oluşturulup satır geri konmalı.
+# `public/` bir dönem kopyalanmıyordu çünkü klasör yoktu ve olmayan bir yolu
+# kopyalamak imaj derlemesini durduruyordu. PWA manifesti ve ikon eklenince
+# klasör oluştu; satır geri kondu. Klasörü boşaltırsanız bu satır yeniden
+# derlemeyi kırar.
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 

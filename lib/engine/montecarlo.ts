@@ -37,6 +37,14 @@ export const DEFAULT_ASSUMPTIONS: Record<string, { expectedReturn: number; volat
   realestate: { expectedReturn: 0.035, volatility: 0.10 },
   vehicle: { expectedReturn: -0.12, volatility: 0.05 },
   venture: { expectedReturn: 0.15, volatility: 0.55 },
+  // Tahvil mevduata yakın ama faiz riski taşır — vade uzadıkça fiyat
+  // dalgalanır, o yüzden volatilitesi mevduatınkinden yüksek.
+  bond: { expectedReturn: 0.02, volatility: 0.06 },
+  // Emeklilik fonu karma bir portföydür; hisse ile mevduat arası.
+  pension: { expectedReturn: 0.04, volatility: 0.10 },
+  // Kıymetli eşya: düşük beklenen reel getiri, yüksek belirsizlik ve
+  // likidite riski. Taşıma maliyeti bu getiriye dahil değildir.
+  collectible: { expectedReturn: 0.02, volatility: 0.25 },
 };
 
 /**
@@ -306,7 +314,12 @@ export const STRESS_SCENARIOS: StressScenario[] = [
     key: "equityCrash",
     label: "Borsa çöküşü",
     description: "Hisse senetleri %40, kripto %60 düşer.",
-    shocks: { equity: -0.40, crypto: -0.60, venture: -0.30, commodity: -0.10 },
+    // Tahvil krizde genelde değer kazanır (kaliteye kaçış); emeklilik
+    // fonu karma olduğu için hisseyi kısmen izler.
+    shocks: {
+      equity: -0.40, crypto: -0.60, venture: -0.30, commodity: -0.10,
+      bond: 0.03, pension: -0.20, collectible: -0.15,
+    },
   },
   {
     key: "fxShock",
@@ -318,7 +331,7 @@ export const STRESS_SCENARIOS: StressScenario[] = [
     key: "propertyCrash",
     label: "Gayrimenkul düzeltmesi",
     description: "Konut fiyatları %25 geriler, araçlar %20 değer kaybeder.",
-    shocks: { realestate: -0.25, vehicle: -0.20 },
+    shocks: { realestate: -0.25, vehicle: -0.20, collectible: -0.15 },
   },
   {
     key: "ventureWipeout",
@@ -333,6 +346,8 @@ export const STRESS_SCENARIOS: StressScenario[] = [
     shocks: {
       equity: -0.40, crypto: -0.60, realestate: -0.25,
       vehicle: -0.20, venture: -1.0, __currency_TRY: -0.3333,
+      // Fırtınada tahvil de korumaz: faiz şoku ve kredi riski birlikte gelir.
+      bond: -0.15, pension: -0.30, collectible: -0.40,
     },
   },
 ];

@@ -200,6 +200,9 @@ const KIND_LABEL: Record<string, string> = {
   vehicle: "Araç",
   venture: "Girişim",
   cash: "Nakit",
+  bond: "Tahvil",
+  pension: "Emeklilik",
+  collectible: "Kıymetli eşya",
 };
 
 const BASIS_STYLE: Record<string, { label: string; className: string }> = {

@@ -30,6 +30,21 @@ const TYPES = [
     desc: "Marka, model ve yıl. Amortisman eğrisiyle değer kaybı hesaplanır.",
   },
   {
+    href: "/ekle/tahvil",
+    title: "Tahvil / Bono",
+    desc: "Nominal, kupon ve vade. İşlemiş faiz ve vadeye kadar getiri hesaplanır.",
+  },
+  {
+    href: "/ekle/emeklilik",
+    title: "Emeklilik (BES)",
+    desc: "Devlet katkısının ne kadarını hak ettiğiniz kademe kademe takip edilir.",
+  },
+  {
+    href: "/ekle/kiymetli-esya",
+    title: "Kıymetli eşya",
+    desc: "Sanat, saat, mücevher. Canlı fiyat yoktur — değeri siz girersiniz.",
+  },
+  {
     href: "/ekle/girisim",
     title: "Girişim",
     desc: "Sahiplik payı, sermaye ve aylık gelir-gider. Runway takibi yapılır.",

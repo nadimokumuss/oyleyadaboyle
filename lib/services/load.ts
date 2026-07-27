@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   assets, transactions, deposits, properties, vehicles, ventures,
+  bonds, pensions, collectibles,
 } from "@/db/schema";
 import { computePosition } from "@/lib/finance/costbasis";
 
@@ -14,7 +15,8 @@ import { computePosition } from "@/lib/finance/costbasis";
  */
 
 type FormKind =
-  | "cash" | "position" | "deposit" | "property" | "vehicle" | "venture";
+  | "cash" | "position" | "deposit" | "property" | "vehicle" | "venture"
+  | "bond" | "pension" | "collectible";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function loadAssetDefaults(id: string, kind: FormKind): any {
@@ -134,6 +136,54 @@ export function loadAssetDefaults(id: string, kind: FormKind): any {
         monthlyRevenue: v.monthlyRevenue ?? "",
         monthlyBurn: v.monthlyBurn ?? "",
         cashOnHand: v.cashOnHand ?? "",
+      };
+    }
+
+    case "bond": {
+      const row = db.select().from(bonds).where(eq(bonds.assetId, id)).get();
+      if (!row) return base;
+      return {
+        ...base,
+        issuer: row.issuer,
+        faceValue: row.faceValue,
+        couponRate: row.couponRate,
+        couponsPerYear: row.couponsPerYear,
+        purchasePrice: row.purchasePrice,
+        purchaseDate: row.purchaseDate,
+        maturityDate: row.maturityDate,
+        dayCount: row.dayCount,
+        marketPricePct: row.marketPricePct ?? "",
+        withholdingRate: row.withholdingRate,
+      };
+    }
+
+    case "pension": {
+      const row = db.select().from(pensions).where(eq(pensions.assetId, id)).get();
+      if (!row) return base;
+      return {
+        ...base,
+        provider: row.provider,
+        startDate: row.startDate,
+        participantBalance: row.participantBalance,
+        stateContribution: row.stateContribution,
+        monthlyContribution: row.monthlyContribution ?? "0",
+        retirementDate: row.retirementDate ?? "",
+      };
+    }
+
+    case "collectible": {
+      const row = db.select().from(collectibles).where(eq(collectibles.assetId, id)).get();
+      if (!row) return base;
+      return {
+        ...base,
+        category: row.category,
+        maker: row.maker ?? "",
+        year: row.year ?? undefined,
+        purchasePrice: row.purchasePrice,
+        purchaseDate: row.purchaseDate,
+        appraisalValue: row.appraisalValue ?? "",
+        appraisalDate: row.appraisalDate ?? "",
+        annualCosts: row.annualCosts ?? "0",
       };
     }
 

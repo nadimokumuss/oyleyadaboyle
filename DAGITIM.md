@@ -85,10 +85,12 @@ yolunun tam olarak `/data` olması gerekir.
   yazarsa veri bozulur. Arka plan zamanlayıcısı da bu kısıta yaslanır:
   her kopya kendi döngüsünü çalıştıracağı için ikinci bir kopya düzenli
   hareketleri ve kredi taksitlerini paralel işlemeye kalkardı.
-- **Zamanlayıcı uygulama açılışında başlar** (`instrumentation.ts`), ayrı
-  bir cron servisi kurmanıza gerek yok. Ayarlar sayfasından kapatılabilir.
-  Servisi uyutan bir platformda çalıştırıyorsanız zamanlayıcı da uyur —
-  Railway uyutmadığı için sorun olmaz.
+- **Zamanlayıcı ilk HTTP isteğinde başlar**, ayrı bir cron servisi kurmanıza
+  gerek yok. Sağlık kontrolü (`/api/health`) de tetikleyicidir; Railway bu ucu
+  zaten yokladığı için yeniden dağıtımdan sonra kimse paneli açmasa bile
+  otomasyon çalışır. Bir kez başladıktan sonra sürecin ömrü boyunca bağımsız
+  döner. Ayarlar sayfasından kapatılabilir. Servisi uyutan bir platformda
+  zamanlayıcı da uyur — Railway uyutmadığı için sorun olmaz.
 - **Göçler kendiliğinden çalışır.** `docker-entrypoint.sh` her açılışta
   şemayı günceller; elle bir şey yapmanız gerekmez.
 - **Güncelleme:** `git push` yeterli — Railway yeni sürümü kendi derler.

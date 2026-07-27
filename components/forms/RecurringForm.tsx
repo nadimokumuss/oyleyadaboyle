@@ -15,6 +15,7 @@ import {
   CurrencySelect,
 } from "@/components/form/Field";
 import { SubmitButton } from "@/components/form/Button";
+import { DeleteButton } from "@/components/form/DeleteButton";
 import { Money, formatMoney } from "@/lib/money";
 
 const initial: FormState = {};
@@ -105,14 +106,10 @@ export function RecurringForm({
                 <span className="num text-xs text-ink-muted">
                   {r.active ? `sıradaki ${r.nextRunDate}` : "pasif"}
                 </span>
-                <form action={deleteRecurringAction.bind(null, r.id)}>
-                  <button
-                    type="submit"
-                    className="rounded px-1.5 py-0.5 text-xs text-ink-faint transition-colors hover:bg-surface-hover hover:text-loss focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  >
-                    sil
-                  </button>
-                </form>
+                <DeleteButton
+                  action={deleteRecurringAction.bind(null, r.id)}
+                  successMessage="Düzenli hareket silindi."
+                />
               </div>
             </li>
           ))}
@@ -206,7 +203,7 @@ export function RecurringForm({
             error={err.endDate}
             hint="boşsa süresiz"
           >
-            <DateInput id="endDate" name="endDate" error={err.endDate} />
+            <DateInput id="endDate" name="endDate" error={err.endDate} allowFuture />
           </Field>
         </div>
 

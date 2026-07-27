@@ -5,6 +5,7 @@ import { createAlertAction, deleteAlertAction } from "@/app/actions/automation";
 import type { FormState } from "@/app/actions/assets";
 import { Field, Select, TextInput, MoneyInput } from "@/components/form/Field";
 import { SubmitButton } from "@/components/form/Button";
+import { DeleteButton } from "@/components/form/DeleteButton";
 import { formatMoney, Money } from "@/lib/money";
 
 const initial: FormState = {};
@@ -103,14 +104,10 @@ export function AlertForm({
                 ) : (
                   <span className="text-ink-faint">bekliyor</span>
                 )}
-                <form action={deleteAlertAction.bind(null, a.id)}>
-                  <button
-                    type="submit"
-                    className="rounded px-1.5 py-0.5 text-ink-faint transition-colors hover:bg-surface-hover hover:text-loss focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  >
-                    sil
-                  </button>
-                </form>
+                <DeleteButton
+                  action={deleteAlertAction.bind(null, a.id)}
+                  successMessage="Alarm silindi."
+                />
               </span>
             </li>
           ))}

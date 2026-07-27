@@ -270,6 +270,9 @@ const KIND_LABEL: Record<string, string> = {
   vehicle: "Araç",
   venture: "Girişim",
   cash: "Nakit",
+  bond: "Tahvil",
+  pension: "Emeklilik",
+  collectible: "Kıymetli eşya",
   commodity: "Emtia",
 };
 

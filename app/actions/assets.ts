@@ -6,8 +6,9 @@ import { assertAuth } from "@/lib/session";
 import {
   validate, cashSchema, positionSchema, depositSchema,
   propertySchema, vehicleSchema, ventureSchema, transactionSchema,
-  watchlistSchema,
+  watchlistSchema, bondSchema, pensionSchema, collectibleSchema,
 } from "@/lib/schemas";
+import * as other from "@/lib/services/otherAssets";
 import * as svc from "@/lib/services/assets";
 import { db } from "@/db/client";
 import { watchlist } from "@/db/schema";
@@ -34,6 +35,7 @@ function revalidateAll(): void {
   for (const p of [
     "/", "/portfoy", "/mevduat", "/gayrimenkul", "/arac", "/girisim",
     "/nakit-akisi", "/firsatlar", "/senaryo", "/plan", "/kesfet", "/ayarlar",
+    "/tahvil", "/emeklilik", "/kiymetli-esya", "/vergi",
   ]) {
     revalidatePath(p);
   }
@@ -96,6 +98,20 @@ export async function saveVehicleAction(_p: FormState, fd: FormData): Promise<Fo
 export async function saveVentureAction(_p: FormState, fd: FormData): Promise<FormState> {
   const target = String(fd.get("status")) === "planned" ? "/plan" : "/girisim";
   return handle(fd, ventureSchema, svc.saveVenture, target);
+}
+
+export async function saveBondAction(_p: FormState, fd: FormData): Promise<FormState> {
+  const target = String(fd.get("status")) === "planned" ? "/plan" : "/tahvil";
+  return handle(fd, bondSchema, other.saveBond, target);
+}
+
+export async function savePensionAction(_p: FormState, fd: FormData): Promise<FormState> {
+  return handle(fd, pensionSchema, other.savePension, "/emeklilik");
+}
+
+export async function saveCollectibleAction(_p: FormState, fd: FormData): Promise<FormState> {
+  const target = String(fd.get("status")) === "planned" ? "/plan" : "/kiymetli-esya";
+  return handle(fd, collectibleSchema, other.saveCollectible, target);
 }
 
 export async function saveTransactionAction(_p: FormState, fd: FormData): Promise<FormState> {

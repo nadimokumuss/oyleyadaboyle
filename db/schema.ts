@@ -41,7 +41,10 @@ export const assets = sqliteTable(
   {
     id: id(),
     kind: text("kind", {
-      enum: ["equity", "crypto", "deposit", "realestate", "vehicle", "venture", "cash", "commodity"],
+      enum: [
+        "equity", "crypto", "deposit", "realestate", "vehicle", "venture",
+        "cash", "commodity", "bond", "pension", "collectible",
+      ],
     }).notNull(),
     name: text("name").notNull(),
     symbol: text("symbol"), // piyasa varlıkları için: "BTC", "THYAO.IS", "AAPL"
@@ -200,6 +203,108 @@ export const ventures = sqliteTable("ventures", {
   monthlyBurn: text("monthly_burn").default("0"),
   cashOnHand: text("cash_on_hand").default("0"),
   stage: text("stage"), // "pre-seed", "seed", "A", ...
+});
+
+/**
+ * Tahvil ve bono.
+ *
+ * Mevduattan ayrı bir tablo, çünkü tahvilin iki fiyatı vardır: kupon
+ * ödemeleri arasında biriken **işlemiş faiz** ve piyasada işlem gören
+ * **temiz fiyat**. Mevduatın böyle bir ikiliği yok.
+ *
+ * Nominal (par) değer adet değil tutardır — 1.000 TL nominal tahvil,
+ * "1 adet" değil. Bu yüzden `quantity` yerine `faceValue` tutulur.
+ */
+export const bonds = sqliteTable("bonds", {
+  assetId: text("asset_id")
+    .primaryKey()
+    .references(() => assets.id, { onDelete: "cascade" }),
+  issuer: text("issuer").notNull(),
+  /** Nominal (par) değer — vadede geri ödenecek tutar. */
+  faceValue: text("face_value").notNull(),
+  /** Yıllık kupon oranı (0.15 = %15). Sıfır ise iskontolu tahvil. */
+  couponRate: text("coupon_rate").notNull().default("0"),
+  /** Yılda kaç kupon ödemesi. 0 = kuponsuz (iskontolu). */
+  couponsPerYear: integer("coupons_per_year").notNull().default(2),
+  /** Alış fiyatı — nominalin yüzdesi değil, ödenen tutar. */
+  purchasePrice: text("purchase_price").notNull(),
+  purchaseDate: text("purchase_date").notNull(),
+  maturityDate: text("maturity_date").notNull(),
+  dayCount: text("day_count", { enum: ["ACT/365", "ACT/360", "30/360"] })
+    .notNull()
+    .default("ACT/365"),
+  /**
+   * Piyasa temiz fiyatı (nominalin yüzdesi, 0.98 = %98).
+   * Girilmezse değerleme itfa maliyeti üzerinden yapılır.
+   */
+  marketPricePct: text("market_price_pct"),
+  marketPriceDate: text("market_price_date"),
+  /** Kupon gelirinden kesilen stopaj oranı. */
+  withholdingRate: text("withholding_rate").notNull().default("0"),
+  note: text("note"),
+});
+
+/**
+ * Bireysel emeklilik (BES) ve benzeri emeklilik hesapları.
+ *
+ * Devlet katkısı ve hak ediş burada modellenir. Bu tutar **sizindir ama
+ * henüz tamamen değildir**: hak ediş kademesi dolmadan ayrılırsanız
+ * katkının bir kısmını alamazsınız. Net servete hak edilmiş kısım yazılır,
+ * yoksa panel sizi olduğunuzdan zengin gösterirdi.
+ */
+export const pensions = sqliteTable("pensions", {
+  assetId: text("asset_id")
+    .primaryKey()
+    .references(() => assets.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  /** Sisteme giriş tarihi — hak ediş bundan sayılır. */
+  startDate: text("start_date").notNull(),
+  /** Katılımcının kendi birikimi (katkı payı + getirisi). */
+  participantBalance: text("participant_balance").notNull().default("0"),
+  /** Devlet katkısı hesabındaki toplam. */
+  stateContribution: text("state_contribution").notNull().default("0"),
+  /** Aylık düzenli katkı payı. */
+  monthlyContribution: text("monthly_contribution").default("0"),
+  /**
+   * Hak ediş kademeleri — JSON: [{ years: 3, pct: "0.15" }, ...].
+   * Boşsa Türkiye varsayılanı kullanılır (3/6/10 yıl → %15/35/60,
+   * emeklilikte %100). Mevzuat değişir, koda gömülmez.
+   */
+  vestingTiers: text("vesting_tiers", { mode: "json" })
+    .$type<Array<{ years: number; pct: string }>>()
+    .default([]),
+  /** Emeklilik hakkı kazanılan tarih — geldiyse katkı tamamen hak edilir. */
+  retirementDate: text("retirement_date"),
+  note: text("note"),
+});
+
+/**
+ * Kıymetli eşya — sanat, saat, koleksiyon, mücevher.
+ *
+ * Canlı fiyat kaynağı **yoktur** ve modellenemez de: bir tablonun değeri
+ * bir endeksten türetilemez. Bu yüzden gayrimenkul/araçtan farklı olarak
+ * burada "model" rozeti hiç kullanılmaz — değer ya defter (alış) ya da
+ * elle girilen ekspertizdir. Uydurma bir endeks üretmektense dürüst olmak.
+ */
+export const collectibles = sqliteTable("collectibles", {
+  assetId: text("asset_id")
+    .primaryKey()
+    .references(() => assets.id, { onDelete: "cascade" }),
+  category: text("category", {
+    enum: ["art", "watch", "jewelry", "vehicle_classic", "wine", "other"],
+  })
+    .notNull()
+    .default("other"),
+  maker: text("maker"),
+  year: integer("year"),
+  purchasePrice: text("purchase_price").notNull(),
+  purchaseDate: text("purchase_date").notNull(),
+  /** Elle girilen güncel ekspertiz. Yoksa alış fiyatı kullanılır. */
+  appraisalValue: text("appraisal_value"),
+  appraisalDate: text("appraisal_date"),
+  /** Sigorta, saklama, bakım — yıllık. */
+  annualCosts: text("annual_costs").default("0"),
+  note: text("note"),
 });
 
 /* ------------------------------------------------------------------ */

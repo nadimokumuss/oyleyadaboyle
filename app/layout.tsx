@@ -4,6 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Servet Terminali",
   description: "Çok para birimli, çok ülkeli canlı varlık yönetim paneli",
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  // Panel servettir; arama motorlarına düşmesi istenmez.
+  robots: { index: false, follow: false },
+  appleWebApp: { capable: true, title: "Servet", statusBarStyle: "black-translucent" },
 };
 
 /**

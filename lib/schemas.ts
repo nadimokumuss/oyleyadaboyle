@@ -522,6 +522,81 @@ export const notifySettingsSchema = z.object({
 });
 export type NotifySettingsInput = z.infer<typeof notifySettingsSchema>;
 
+/* ------------------------------------------------------------------ */
+/* Tahvil, emeklilik, kıymetli eşya                                     */
+/* ------------------------------------------------------------------ */
+
+export const bondSchema = z
+  .object({
+    ...fundingFields,
+    id: z.string().uuid().optional(),
+    name,
+    issuer: z.string().trim().min(1, "İhraççı zorunlu").max(120),
+    currency,
+    country: country.optional().or(z.literal("")).transform((v) => v || null),
+    faceValue: decimalString({ min: 0, label: "Nominal değer" }),
+    couponRate: decimalString({ min: 0, max: 2, label: "Kupon oranı" }),
+    couponsPerYear: z.coerce.number().int().min(0).max(12).default(2),
+    purchasePrice: decimalString({ min: 0, label: "Alış fiyatı" }),
+    purchaseDate: pastOrToday,
+    maturityDate: isoDate,
+    dayCount: z.enum(["ACT/365", "ACT/360", "30/360"]).default("ACT/365"),
+    marketPricePct: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => v || null),
+    withholdingRate: optionalDecimal(1),
+    status: assetStatus.default("active"),
+    liquidity: liquidity.default("weeks"),
+    note,
+  })
+  .refine((v) => v.maturityDate > v.purchaseDate, {
+    message: "Vade, alış tarihinden sonra olmalı",
+    path: ["maturityDate"],
+  });
+export type BondInput = z.infer<typeof bondSchema>;
+
+export const pensionSchema = z.object({
+  id: z.string().uuid().optional(),
+  name,
+  provider: z.string().trim().min(1, "Kurum zorunlu").max(120),
+  currency,
+  country: country.optional().or(z.literal("")).transform((v) => v || null),
+  startDate: pastOrToday,
+  participantBalance: optionalDecimal(),
+  stateContribution: optionalDecimal(),
+  monthlyContribution: optionalDecimal(),
+  retirementDate: isoDate.optional().or(z.literal("")).transform((v) => v || null),
+  note,
+});
+export type PensionInput = z.infer<typeof pensionSchema>;
+
+export const collectibleSchema = z.object({
+  ...fundingFields,
+  id: z.string().uuid().optional(),
+  name,
+  category: z.enum(["art", "watch", "jewelry", "vehicle_classic", "wine", "other"]),
+  maker: z.string().trim().max(120).optional().or(z.literal("")).transform((v) => v || null),
+  year: z.coerce.number().int().min(0).max(2200).optional(),
+  currency,
+  country: country.optional().or(z.literal("")).transform((v) => v || null),
+  purchasePrice: decimalString({ min: 0, label: "Alış fiyatı" }),
+  purchaseDate: pastOrToday,
+  appraisalValue: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => v || null),
+  appraisalDate: isoDate.optional().or(z.literal("")).transform((v) => v || null),
+  annualCosts: optionalDecimal(),
+  status: assetStatus.default("active"),
+  note,
+});
+export type CollectibleInput = z.infer<typeof collectibleSchema>;
+
 export const goalSchema = z.object({
   id: z.string().trim().optional().or(z.literal("")).transform((v) => v || undefined),
   name,

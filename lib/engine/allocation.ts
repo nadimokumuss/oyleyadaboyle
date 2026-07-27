@@ -49,6 +49,9 @@ export interface AllocationProposal {
 
 const LABELS: Record<string, string> = {
   cash: "Nakit",
+  bond: "Tahvil",
+  pension: "Emeklilik",
+  collectible: "Kıymetli eşya",
   deposit: "Mevduat / sabit getiri",
   equity: "Hisse ve ETF",
   crypto: "Kripto",

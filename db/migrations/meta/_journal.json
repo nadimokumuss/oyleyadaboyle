@@ -71,6 +71,13 @@
       "when": 1785176196282,
       "tag": "0009_aspiring_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1785188121229,
+      "tag": "0010_mushy_maginty",
+      "breakpoints": true
     }
   ]
 }

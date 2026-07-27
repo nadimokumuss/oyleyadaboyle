@@ -1,6 +1,9 @@
 import Decimal from "decimal.js";
 import { db } from "@/db/client";
-import { assets, transactions, deposits, properties, vehicles, ventures } from "@/db/schema";
+import {
+  assets, transactions, deposits, properties, vehicles, ventures,
+  bonds, pensions, collectibles,
+} from "@/db/schema";
 import { Money, type CurrencyCode } from "@/lib/money";
 import { getFx } from "@/lib/market/fxStore";
 import { getQuotes } from "@/lib/market/registry";
@@ -9,6 +12,9 @@ import { depositBalance, loadWithholdingRules } from "@/lib/finance/depositServi
 import { totalOutstandingUsd } from "@/lib/services/liabilities";
 import { valueProperty, sumMonthlyCosts } from "@/lib/finance/realestate";
 import { valueVehicle, sumAnnualCosts, resolveCurve, DEFAULT_MILEAGE } from "@/lib/finance/vehicle";
+import { valueBond, toBondTerms } from "@/lib/finance/bond";
+import { valuePension, DEFAULT_VESTING_TIERS } from "@/lib/finance/pension";
+import { valueCollectible, CATEGORY_LABEL } from "@/lib/finance/collectible";
 import indicesJson from "@/db/seeds/indices.json";
 import depreciationJson from "@/db/seeds/depreciation.json";
 import type { Asset } from "@/db/schema";
@@ -120,6 +126,15 @@ export async function computeNetWorth(): Promise<NetWorth> {
   const ventureRows = new Map(
     db.select().from(ventures).all().map((v) => [v.assetId, v]),
   );
+  const bondRows = new Map(
+    db.select().from(bonds).all().map((b) => [b.assetId, b]),
+  );
+  const pensionRows = new Map(
+    db.select().from(pensions).all().map((p) => [p.assetId, p]),
+  );
+  const collectibleRows = new Map(
+    db.select().from(collectibles).all().map((c) => [c.assetId, c]),
+  );
   const whRules = loadWithholdingRules();
 
   const valuations: AssetValuation[] = [];
@@ -132,6 +147,9 @@ export async function computeNetWorth(): Promise<NetWorth> {
       property: propertyRows.get(asset.id),
       vehicle: vehicleRows.get(asset.id),
       venture: ventureRows.get(asset.id),
+      bond: bondRows.get(asset.id),
+      pension: pensionRows.get(asset.id),
+      collectible: collectibleRows.get(asset.id),
       whRules,
     });
     if (!v) continue;
@@ -175,6 +193,9 @@ type Extras = {
   property?: typeof properties.$inferSelect;
   vehicle?: typeof vehicles.$inferSelect;
   venture?: typeof ventures.$inferSelect;
+  bond?: typeof bonds.$inferSelect;
+  pension?: typeof pensions.$inferSelect;
+  collectible?: typeof collectibles.$inferSelect;
   whRules?: ReturnType<typeof loadWithholdingRules>;
 };
 
@@ -353,6 +374,119 @@ function valueAsset(
         changePct24h: null,
         quantity: null,
         note: v.valuation ? "Son tur değerlemesi" : "Ödenen sermaye",
+      };
+    }
+
+    case "bond": {
+      const b = extras.bond;
+      if (!b) return null;
+
+      const terms = toBondTerms(b, asset.currency);
+      const val = valueBond(terms, new Date(), b.marketPricePct);
+
+      return {
+        ...base,
+        // Kirli değer: temiz fiyat + işlemiş faiz. Elde gerçekte olan budur.
+        valueLocal: val.dirtyValue,
+        costLocal: terms.purchasePrice,
+        unrealizedPnl: val.unrealizedPnl,
+        // Piyasa fiyatı elle girilmiş bir kotasyondur, canlı besleme değil —
+        // "canlı" demek yanıltıcı olurdu.
+        basis: val.basis === "market" ? "book" : "accrual",
+        priceAgeMs: null,
+        changePct24h: null,
+        quantity: null,
+        note: val.matured
+          ? "Vade doldu — nominal"
+          : val.basis === "market"
+            ? `Piyasa fiyatı + işlemiş faiz${
+                val.nextCoupon ? ` · sıradaki kupon ${val.nextCoupon.date}` : ""
+              }`
+            : `İtfa maliyeti + işlemiş faiz${
+                val.daysToMaturity !== null ? ` · vadeye ${val.daysToMaturity} gün` : ""
+              }`,
+      };
+    }
+
+    case "pension": {
+      const p = extras.pension;
+      if (!p) return null;
+
+      const tiers =
+        p.vestingTiers && p.vestingTiers.length > 0 ? p.vestingTiers : DEFAULT_VESTING_TIERS;
+
+      const val = valuePension(
+        {
+          participantBalance: Money.of(p.participantBalance, asset.currency),
+          stateContribution: Money.of(p.stateContribution, asset.currency),
+          startDate: new Date(p.startDate),
+          retirementDate: p.retirementDate ? new Date(p.retirementDate) : null,
+          tiers,
+          monthlyContribution: Money.of(p.monthlyContribution ?? "0", asset.currency),
+        },
+        new Date(),
+      );
+
+      // Servete yalnızca HAK EDİLMİŞ tutar yazılır. Hak edilmemiş devlet
+      // katkısı henüz sizin değil; onu saymak "planlanan varlık servete
+      // sayılmaz" kuralının aynısını çiğnemek olurdu.
+      return {
+        ...base,
+        valueLocal: val.vestedValue,
+        costLocal: Money.of(p.participantBalance, asset.currency),
+        unrealizedPnl: val.vestedState,
+        basis: "book",
+        priceAgeMs: null,
+        changePct24h: null,
+        quantity: null,
+        note: val.retired
+          ? "Emeklilik hakkı kazanıldı — katkının tamamı hak edildi"
+          : val.unvestedState.isZero()
+            ? "Devlet katkısı tamamen hak edildi"
+            : `Devlet katkısının %${val.vestedRatio.times(100).toDecimalPlaces(0)} hak edildi` +
+              (val.nextTier
+                ? ` · ${val.nextTier.yearsRemaining.toDecimalPlaces(1)} yıl sonra %${new Decimal(
+                    val.nextTier.pct,
+                  ).times(100).toDecimalPlaces(0)}`
+                : ""),
+      };
+    }
+
+    case "collectible": {
+      const c = extras.collectible;
+      if (!c) return null;
+
+      const cost = Money.of(c.purchasePrice, asset.currency);
+      const val = valueCollectible(
+        {
+          purchasePrice: cost,
+          purchaseDate: new Date(c.purchaseDate),
+          appraisalValue: c.appraisalValue
+            ? Money.of(c.appraisalValue, asset.currency)
+            : null,
+          appraisalDate: c.appraisalDate ? new Date(c.appraisalDate) : null,
+          annualCosts: Money.of(c.annualCosts ?? "0", asset.currency),
+        },
+        new Date(),
+      );
+
+      // Burada "model" rozeti hiç kullanılmaz: bir tablonun değeri
+      // endeksten türetilemez. Ya ekspertiz ya defter değeri.
+      return {
+        ...base,
+        valueLocal: val.currentValue,
+        costLocal: cost,
+        unrealizedPnl: val.unrealizedPnl,
+        basis: "book",
+        priceAgeMs: null,
+        changePct24h: null,
+        quantity: null,
+        note:
+          val.basis === "appraisal"
+            ? `Ekspertiz${
+                val.appraisalAgeDays !== null ? ` · ${val.appraisalAgeDays} gün önce` : ""
+              }`
+            : `${CATEGORY_LABEL[c.category] ?? "Kıymetli eşya"} — alış fiyatı, ekspertiz girilmedi`,
       };
     }
 

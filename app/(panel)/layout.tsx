@@ -1,7 +1,9 @@
 import { Sidebar } from "@/components/Sidebar";
 import { NavDrawer } from "@/components/NavDrawer";
+import { ToastProvider } from "@/components/Toast";
 import { requireAuth } from "@/lib/session";
 import { unreadCount } from "@/lib/services/notify";
+import { ensureSchedulerStarted } from "@/lib/bootstrap";
 
 /**
  * Korumalı alan. Buradaki her sayfa oturum ister — bir sayfayı
@@ -13,10 +15,13 @@ export default async function PanelLayout({
   children: React.ReactNode;
 }) {
   await requireAuth();
+  // Arka plan zamanlayıcısı ilk istekte ayağa kalkar; idempotent.
+  ensureSchedulerStarted();
   const unread = unreadCount();
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <ToastProvider>
+      <div className="flex h-dvh overflow-hidden">
       {/* Masaüstü: sabit kenar çubuğu. Dar ekranda gizlenir, yerini
           NavDrawer'ın başlık çubuğu ve çekmecesi alır. */}
       <Sidebar className="hidden md:flex" unreadCount={unread} />
@@ -32,6 +37,7 @@ export default async function PanelLayout({
           {children}
         </main>
       </div>
-    </div>
+      </div>
+    </ToastProvider>
   );
 }

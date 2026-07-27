@@ -46,5 +46,11 @@
     "referencePerYear": 15000,
     "penaltyPer10k": 0.035,
     "maxPenalty": 0.35
+  },
+  "_sources": {
+    "_howto": "λ değerini kendi piyasanızdan kalibre edin: aynı model için 0. yıl ve n. yıl ilan fiyatlarını bulup λ = −ln(fiyat_n / fiyat_0) / n formülüyle hesaplayın.",
+    "TR": "sahibinden.com, arabam.com ilan fiyatları",
+    "US": "Kelley Blue Book (kbb.com), Edmunds",
+    "EU": "mobile.de, autoscout24"
   }
 }

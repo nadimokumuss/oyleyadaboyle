@@ -308,6 +308,8 @@ export function DateInput({
   error,
   required,
   max,
+  allowFuture,
+  onChange,
 }: {
   name: string;
   defaultValue?: string;
@@ -315,6 +317,16 @@ export function DateInput({
   error?: string;
   required?: boolean;
   max?: string;
+  /**
+   * Gelecek tarihe izin ver.
+   *
+   * Varsayılan olarak üst sınır bugündür, çünkü alanların çoğu bir alım
+   * tarihidir ve gelecekte bir alım kaydedilemez. Ama vade ve hedef
+   * tarihleri tam tersine geleceğe bakar — onlar bu bayrağı açar.
+   */
+  allowFuture?: boolean;
+  /** Canlı önizleme yapan formlar için. */
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
 }) {
   return (
     <TextInput
@@ -323,8 +335,9 @@ export function DateInput({
       id={id}
       required={required}
       error={error}
-      max={max ?? new Date().toISOString().slice(0, 10)}
+      max={max ?? (allowFuture ? undefined : new Date().toISOString().slice(0, 10))}
       defaultValue={defaultValue?.slice(0, 10)}
+      onChange={onChange}
       className="num"
     />
   );

@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 const KIND_LABEL: Record<string, string> = {
   equity: "Hisse", crypto: "Kripto", commodity: "Emtia", deposit: "Mevduat",
   realestate: "Gayrimenkul", vehicle: "Araç", venture: "Girişim", cash: "Nakit",
+  bond: "Tahvil", pension: "Emeklilik", collectible: "Kıymetli eşya",
 };
 
 export default async function PlanPage() {

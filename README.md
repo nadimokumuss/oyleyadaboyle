@@ -29,7 +29,7 @@ varlıklarınızı formlardan siz eklersiniz.
 | `npm run dev` | Geliştirme modunda çalıştırır |
 | `npm run build` / `npm start` | Üretim derlemesi ve çalıştırma |
 | `npm run typecheck` | TypeScript denetimi |
-| `npm test` | Finans çekirdeği ve otomasyon testleri (473 test) |
+| `npm test` | Finans çekirdeği ve otomasyon testleri (547 test) |
 | `npm run db:generate` | Şema değişikliğinden yeni göç dosyası üretir |
 | `npm run db:migrate` | Şema değişikliklerini uygular |
 | `npm run db:seed` | Örnek senaryo yükler — **veritabanı doluysa reddeder** |
@@ -85,6 +85,9 @@ yeniden açar.
 | Mevduat | Saniyelik canlı faiz tahakkuku, stopaj, reel getiri, karşı-olgusal karşılaştırma |
 | Gayrimenkul | Endeks değerleme, net kira verimi, kur kârı / fiyat kârı ayrıştırması |
 | Araç | Amortisman eğrisi, toplam sahip olma maliyeti |
+| Tahvil | İşlemiş faiz, kupon takvimi, yaklaşık YTM, temiz/kirli fiyat |
+| Emeklilik | BES devlet katkısı ve kademeli hak ediş; servete yalnızca hak edilen yazılır |
+| Kıymetli eşya | Sanat, saat, koleksiyon. Ekspertiz + taşıma maliyeti düşülmüş net sonuç |
 | Girişim | Burn rate, runway, MOIC, başabaş ilerlemesi |
 | Nakit Akışı | Gelir-gider dengesi, pasif gelir kapsama oranı |
 | Borçlar | Kredi/ipotek, ödeme planı, toplam faiz maliyeti, kaldıraç, erken kapatma |
@@ -176,7 +179,8 @@ XIRR'a bakın.
 
 ## Panel kapalıyken de çalışır
 
-Arka planda dakikada bir uyanan bir zamanlayıcı var. Yaptıkları:
+Arka planda dakikada bir uyanan bir zamanlayıcı var — ilk HTTP isteğinde
+ayağa kalkar ve sonra sürecin ömrü boyunca bağımsız döner. Yaptıkları:
 
 | İş | Sıklık | Ne yapar |
 |---|---|---|
@@ -387,8 +391,12 @@ lib/
   finance/dividends.ts  Temettü verimi ve ileriye dönük tahmin
   finance/benchmark.ts  Endeksle karşılaştırma
   finance/goals.ts      Hedef ilerlemesi ve finansal bağımsızlık
+  finance/bond.ts       İşlemiş faiz, itfa maliyeti, YTM
+  finance/pension.ts    Hak ediş kademeleri ve devlet katkısı
+  finance/collectible.ts Ekspertiz ve taşıma maliyeti
   scheduler.ts Arka plan döngüsü ve idempotency defteri
   jobs.ts      Zamanlayıcının çalıştırdığı işlerin listesi
+  bootstrap.ts Zamanlayıcıyı ilk sunucu isteğinde ayağa kaldırır
   finance/     Faiz, maliyet esası, amortisman, kredi, sinyal motorları
   market/      Fiyat sağlayıcıları, önbellek, hız sınırlayıcı
   engine/      Fırsat kuralları, Monte Carlo, dağılım önerisi

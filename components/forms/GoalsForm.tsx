@@ -12,6 +12,7 @@ import {
   CurrencySelect,
 } from "@/components/form/Field";
 import { SubmitButton } from "@/components/form/Button";
+import { DeleteButton } from "@/components/form/DeleteButton";
 import { Money, formatMoney, formatPercent } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import Decimal from "decimal.js";
@@ -80,14 +81,10 @@ export function GoalsForm({ goals }: { goals: GoalRow[] }) {
                         : " (tarihi geçti)"}
                     </p>
                   </div>
-                  <form action={deleteGoalAction.bind(null, g.id)}>
-                    <button
-                      type="submit"
-                      className="rounded px-1.5 py-0.5 text-xs text-ink-faint transition-colors hover:bg-surface-hover hover:text-loss focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                    >
-                      sil
-                    </button>
-                  </form>
+                  <DeleteButton
+                    action={deleteGoalAction.bind(null, g.id)}
+                    successMessage="Hedef silindi."
+                  />
                 </div>
 
                 <div className="mt-2.5">
@@ -205,7 +202,13 @@ export function GoalsForm({ goals }: { goals: GoalRow[] }) {
           </Field>
 
           <Field label="Hedef tarih" htmlFor="targetDate" error={err.targetDate}>
-            <DateInput id="targetDate" name="targetDate" error={err.targetDate} required />
+            <DateInput
+              id="targetDate"
+              name="targetDate"
+              error={err.targetDate}
+              allowFuture
+              required
+            />
           </Field>
 
           <Field

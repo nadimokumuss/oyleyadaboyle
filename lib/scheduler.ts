@@ -146,7 +146,22 @@ function schedulerEnabled(): boolean {
 }
 
 /**
- * Döngüyü başlatır. `instrumentation.ts` üzerinden bir kez çağrılır.
+ * Döngüyü başlatır.
+ *
+ * ## Neden `instrumentation.ts` kullanılmıyor
+ *
+ * Süreç açılışında başlatmak ilk tercihti ama Next `instrumentation.ts`'i
+ * **hem Node hem edge runtime için derliyor** ve edge derlemesinde
+ * `serverExternalPackages` geçerli olmuyor. Zamanlayıcı SQLite'a
+ * dokunduğu için bu, önce `Can't resolve 'fs'` sonra `node:crypto` ile
+ * tüm sayfaları 500'e düşürüyordu. Çalışma anındaki `NEXT_RUNTIME`
+ * kontrolü işe yaramıyor: paketleme statik analizle, yani o kontrol
+ * çalışmadan önce yapılıyor.
+ *
+ * Bunun yerine ilk sunucu isteğinde başlatılıyor (`ensureSchedulerStarted`).
+ * Kaybedilen tek şey şu: yeniden başlatmadan sonra döngü, ilk HTTP
+ * isteğine kadar beklemek zorunda. O istek geldikten sonra zamanlayıcı
+ * sürecin ömrü boyunca bağımsız çalışır — panelin açık kalmasına gerek yok.
  *
  * Dev modunda hot reload modülü yeniden çalıştırdığı için zamanlayıcı
  * `globalThis` üzerinde tutulur; yoksa her kaydetmede bir döngü daha
