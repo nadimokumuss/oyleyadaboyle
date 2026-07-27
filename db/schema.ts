@@ -283,6 +283,155 @@ export const alerts = sqliteTable("alerts", {
   ...timestamps,
 });
 
+/* ------------------------------------------------------------------ */
+/* Zamanlanmış işler, bildirimler, tekrarlayan hareketler              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * İş çalıştırma defteri — zamanlayıcının idempotency dayanağı.
+ *
+ * `runKey` işin "hangi dönem için" çalıştığını söyler (günlük işler için
+ * "2026-07-27"). `(jobKey, runKey)` benzersiz olduğu için aynı dönemin
+ * işi ikinci kez çalışmaya kalkarsa INSERT reddedilir ve iş atlanır.
+ *
+ * Bellekte bayrak tutmak yetmez: sunucu yeniden başlarsa bayrak sıfırlanır
+ * ve o günün işi bir daha çalışır. Para hareketi üreten bir iş için bu
+ * çift kayıt demektir — defter kalıcı olmak zorunda.
+ */
+export const jobRuns = sqliteTable(
+  "job_runs",
+  {
+    id: id(),
+    jobKey: text("job_key").notNull(),
+    runKey: text("run_key").notNull(),
+    startedAt: text("started_at").notNull().default(sql`(datetime('now'))`),
+    finishedAt: text("finished_at"),
+    ok: integer("ok", { mode: "boolean" }),
+    /** Ne yapıldığının kısa özeti veya hata mesajı. */
+    message: text("message"),
+  },
+  (t) => [
+    unique("job_run_unique").on(t.jobKey, t.runKey),
+    index("job_runs_started_idx").on(t.startedAt),
+  ],
+);
+
+/**
+ * Bildirim günlüğü.
+ *
+ * Dışarı gönderim başarısız olsa bile kayıt burada durur — panel açıldığında
+ * kullanıcı kaçırdığı uyarıyı görür. Webhook'un çalışmaması bildirimin
+ * kaybolması anlamına gelmemeli.
+ */
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: id(),
+    kind: text("kind", {
+      enum: ["price_alert", "portfolio", "recurring", "loan", "system"],
+    }).notNull(),
+    severity: text("severity", { enum: ["info", "warn", "critical"] })
+      .notNull()
+      .default("info"),
+    title: text("title").notNull(),
+    body: text("body"),
+    /**
+     * Aynı olayın tekrar tekrar bildirilmesini engelleyen anahtar.
+     * Örn. "alert:<id>:fired" veya "portfolio:lowCash:2026-07-27".
+     */
+    dedupeKey: text("dedupe_key"),
+    readAt: text("read_at"),
+    /** Webhook'a gönderildiği an; null ise gönderilmedi. */
+    deliveredAt: text("delivered_at"),
+    deliveryError: text("delivery_error"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (t) => [
+    unique("notification_dedupe_unique").on(t.dedupeKey),
+    index("notifications_created_idx").on(t.createdAt),
+  ],
+);
+
+/**
+ * Tekrarlayan para hareketleri — maaş, kira, abonelik, düzenli yatırım.
+ *
+ * Şablon burada durur, üretilen kayıtlar normal `transactions` satırıdır.
+ * Böylece otomatik üretilen bir hareket elle girilmiş olandan farklı
+ * davranmaz: aynı yerde görünür, aynı şekilde geri alınabilir.
+ *
+ * `nextRunDate` ilerletme ile kayıt yazma **tek transaction** içindedir;
+ * arada çökme olursa ikisi de geri alınır, çift kayıt oluşmaz.
+ */
+export const recurringTransactions = sqliteTable(
+  "recurring_transactions",
+  {
+    id: id(),
+    assetId: text("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    type: text("type", {
+      enum: [
+        "dividend", "interest", "rent", "staking",
+        "expense", "fee", "tax",
+        "deposit_in", "withdraw",
+      ],
+    }).notNull(),
+    amount: text("amount").notNull(),
+    currency: text("currency").notNull(),
+    frequency: text("frequency", {
+      enum: ["weekly", "monthly", "quarterly", "yearly"],
+    }).notNull(),
+    startDate: text("start_date").notNull(),
+    /** null = süresiz. */
+    endDate: text("end_date"),
+    /** Bir sonraki üretim tarihi (YYYY-MM-DD). */
+    nextRunDate: text("next_run_date").notNull(),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    lastRunAt: text("last_run_at"),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [index("recurring_next_run_idx").on(t.nextRunDate)],
+);
+
+/**
+ * Finansal hedefler.
+ *
+ * Senaryo sayfası bir olasılık dağılımı üretiyordu ama bir **hedefe**
+ * bağlı değildi: "20 yıl sonra şu aralıkta olursunuz" bilgi verir,
+ * "emeklilik hedefinize ulaşma olasılığınız %72" karar verdirir.
+ */
+export const goals = sqliteTable(
+  "goals",
+  {
+    id: id(),
+    name: text("name").notNull(),
+    /** Ulaşılmak istenen tutar. */
+    targetAmount: text("target_amount").notNull(),
+    currency: text("currency").notNull(),
+    /** Hedef tarih (YYYY-MM-DD). */
+    targetDate: text("target_date").notNull(),
+    kind: text("kind", {
+      enum: ["retirement", "property", "education", "emergency", "other"],
+    })
+      .notNull()
+      .default("other"),
+    /** Küçük sayı = yüksek öncelik. */
+    priority: integer("priority").notNull().default(1),
+    /**
+     * Hedefe sayılacak varlıklar. Boşsa net servetin tamamı sayılır —
+     * çoğu kullanıcı için doğru varsayım, ama "ev peşinatı" gibi bir
+     * hedefte yalnızca likit varlıkları saymak istenebilir.
+     */
+    countKinds: text("count_kinds", { mode: "json" }).$type<string[]>().default([]),
+    achievedAt: text("achieved_at"),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [index("goals_target_date_idx").on(t.targetDate)],
+);
+
 /** Stopaj oranları — mevzuat değişir, koda gömülmez. */
 export const withholdingRates = sqliteTable("withholding_rates", {
   id: id(),
@@ -340,6 +489,62 @@ export const settings = sqliteTable("settings", {
    */
   allowedIps: text("allowed_ips"),
 
+  /**
+   * Yıllık enflasyon varsayımı, para birimi başına ("TRY" → "0.33").
+   *
+   * Reel getiri panelin en çok öne çıkardığı sayı; onu üreten varsayımın
+   * koda gömülü olması kullanıcıyı değiştiremediği bir gerçeğe mahkûm
+   * ediyordu. Boş bırakılırsa kodda tanımlı yedek değerler kullanılır.
+   */
+  inflationRates: text("inflation_rates", { mode: "json" })
+    .$type<Record<string, string>>()
+    .default({}),
+
+  /**
+   * Karşı-olgusal karşılaştırma için referans yıllık getiriler
+   * ("Aynı para altında olsaydı"). Anahtar sabit, oran düzenlenebilir.
+   */
+  benchmarkReturns: text("benchmark_returns", { mode: "json" })
+    .$type<Record<string, string>>()
+    .default({}),
+
+  /**
+   * Bildirimlerin gönderileceği webhook adresi (Telegram bot, Discord,
+   * kendi ucunuz). Boşsa bildirimler yalnızca panel içinde birikir.
+   *
+   * Webhook bilerek ilk kanal: tek alan, sıfır bağımlılık ve verinin
+   * nereye gittiğini kullanıcı seçiyor — panelin gizlilik duruşuna uyan
+   * tek seçenek bu.
+   */
+  webhookUrl: text("webhook_url"),
+  /** Arka plan zamanlayıcısı çalışsın mı? */
+  schedulerEnabled: integer("scheduler_enabled", { mode: "boolean" })
+    .notNull()
+    .default(true),
+
+  /**
+   * Satışta hangi lot'un elden çıktığı varsayılsın.
+   *
+   * Üçü de "doğru"dur; hangisinin geçerli olduğu bulunduğunuz ülkenin
+   * mevzuatına bağlıdır. Seçim gerçekleşen kârı doğrudan değiştirir.
+   */
+  lotMethod: text("lot_method", { enum: ["fifo", "lifo", "hifo"] })
+    .notNull()
+    .default("fifo"),
+
+  /** Uzun vade sayılma eşiği (gün). Vergi raporu kısa/uzun ayrımını buna göre yapar. */
+  longTermDays: integer("long_term_days").notNull().default(365),
+
+  /**
+   * Sermaye kazancı vergi oranı (0.20 = %20).
+   *
+   * "0" = tanımlanmamış. Panel vergi hesaplamaz; bu oran yalnızca
+   * "zararı realize etseniz ne kadar tasarruf ederdiniz" tahmininde
+   * kullanılır. Oran girilmediyse fırsat kuralı tutar telaffuz etmez —
+   * uydurma bir oranla rakam üretmektense susmak doğrusu.
+   */
+  capitalGainsRate: text("capital_gains_rate").notNull().default("0"),
+
   ...timestamps,
 });
 
@@ -395,6 +600,23 @@ export const liabilities = sqliteTable(
     status: text("status", { enum: ["active", "paid", "settled"] })
       .notNull()
       .default("active"),
+
+    /**
+     * Taksitleri zamanlayıcı kendiliğinden ilerletsin mi?
+     *
+     * Varsayılan KAPALI ve bilerek öyle: arka planda çalışan bir işin
+     * para hareketi üretmesi kullanıcının açıkça istemesi gereken bir şey.
+     * Mevcut kayıtlar bu yüzden davranış değiştirmez.
+     */
+    autoPay: integer("auto_pay", { mode: "boolean" }).notNull().default(false),
+    /**
+     * Taksitin düşeceği nakit varlık. null ise yalnızca `paymentsMade`
+     * ilerler, nakit dokunulmaz — borç azalır ama karşılığı görünmez.
+     */
+    paymentAssetId: text("payment_asset_id").references(() => assets.id, {
+      onDelete: "set null",
+    }),
+
     note: text("note"),
     ...timestamps,
   },

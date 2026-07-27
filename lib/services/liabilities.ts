@@ -43,6 +43,10 @@ export interface LiabilityView {
   endsAt: string;
   settled: boolean;
 
+  /** Taksitleri zamanlayıcı ilerletsin mi, ilerletiyorsa hangi hesaptan. */
+  autoPay: boolean;
+  paymentAssetId: string | null;
+
   /** Erken kapatma tutarı ve tasarruf. */
   earlySettlement: {
     balance: string;
@@ -110,6 +114,8 @@ export async function loadLiabilities(now = new Date()): Promise<LiabilityView[]
       paymentsRemaining: s.paymentsRemaining,
       endsAt: s.endsAt.toISOString(),
       settled: s.settled,
+      autoPay: row.autoPay,
+      paymentAssetId: row.paymentAssetId,
       earlySettlement: {
         balance: early.balance.toDb(),
         penalty: early.penalty.toDb(),

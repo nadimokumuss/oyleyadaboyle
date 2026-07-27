@@ -39,6 +39,86 @@ export const DEFAULT_ASSUMPTIONS: Record<string, { expectedReturn: number; volat
   venture: { expectedReturn: 0.15, volatility: 0.55 },
 };
 
+/**
+ * Varlık sınıfları arası korelasyon varsayımları.
+ *
+ * Anahtar, iki sınıf adının alfabetik sırada "|" ile birleşimi — sıra
+ * önemli olmasın diye (`correlation()` bunu kendisi kurar).
+ *
+ * TEMSİLÎdir ve uzun vadeli ortalamalardır. Kriz anlarında korelasyonlar
+ * 1'e yaklaşır; bu modelin yakalamadığı bir gerçek, `STRESS_SCENARIOS`
+ * tam da bu boşluk için var — her şeyin aynı anda düştüğü hâli oradan
+ * görürsünüz.
+ */
+export const DEFAULT_CORRELATIONS: Record<string, number> = {
+  "crypto|equity": 0.5,
+  "commodity|equity": 0.25,
+  "equity|realestate": 0.35,
+  "equity|venture": 0.65,
+  "deposit|equity": 0.0,
+  "cash|equity": 0.0,
+  "equity|vehicle": 0.0,
+  "crypto|venture": 0.5,
+  "commodity|crypto": 0.15,
+  "crypto|realestate": 0.15,
+  "realestate|venture": 0.2,
+  "commodity|realestate": 0.2,
+  "realestate|vehicle": 0.1,
+  "cash|deposit": 0.9,
+  "deposit|realestate": 0.05,
+  "cash|realestate": 0.05,
+};
+
+/**
+ * Tabloda olmayan çiftler için varsayım.
+ *
+ * Sıfır değil: farklı varlık sınıfları gerçekte tam bağımsız değildir,
+ * hepsi aynı ekonomiye bağlıdır. Sıfır varsaymak çeşitlendirmenin
+ * faydasını abartır — yanılmanın tehlikeli yönü.
+ */
+export const DEFAULT_CORRELATION = 0.2;
+
+function pairKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/** İki varlık sınıfı arasındaki korelasyon; aynı sınıf her zaman 1. */
+export function correlation(
+  a: string,
+  b: string,
+  table: Record<string, number> = DEFAULT_CORRELATIONS,
+): number {
+  if (a === b) return 1;
+  return table[pairKey(a, b)] ?? DEFAULT_CORRELATION;
+}
+
+/**
+ * Portföy volatilitesi: σ_p = √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ)
+ *
+ * Ağırlıklı toplam (`Σwᵢσᵢ`) yerine bu kullanılır çünkü toplam yalnızca
+ * her şey birebir birlikte hareket ettiğinde (ρ=1) doğrudur. Gerçekte
+ * korelasyon 1'in altındadır ve çeşitlendirme riski düşürür; ağırlıklı
+ * toplam bu etkiyi tamamen yok sayarak riski sistematik olarak abartıyordu.
+ */
+export function portfolioVolatility(
+  assumptions: AssetClassAssumption[],
+  table: Record<string, number> = DEFAULT_CORRELATIONS,
+): number {
+  const totalWeight = assumptions.reduce((a, x) => a + x.weight, 0) || 1;
+
+  let variance = 0;
+  for (const i of assumptions) {
+    const wi = i.weight / totalWeight;
+    for (const j of assumptions) {
+      const wj = j.weight / totalWeight;
+      variance += wi * wj * i.volatility * j.volatility * correlation(i.key, j.key, table);
+    }
+  }
+
+  // Kayan nokta birikimi çok küçük negatif değer üretebilir.
+  return Math.sqrt(Math.max(0, variance));
+}
+
 export interface SimulationInput {
   initialValue: number;
   assumptions: AssetClassAssumption[];
@@ -47,6 +127,20 @@ export interface SimulationInput {
   /** Yıllık net nakit ekleme (pozitif) veya çekme (negatif). */
   annualContribution?: number;
   seed?: number;
+  /** Korelasyon tablosu — verilmezse `DEFAULT_CORRELATIONS`. */
+  correlations?: Record<string, number>;
+  /**
+   * Ulaşma olasılığı hesaplanacak hedefler.
+   *
+   * Her hedef **kendi yılında** ölçülür: 5 yıl sonraki bir ev peşinatı
+   * hedefini 20. yılın değerleriyle sınamak olasılığı olduğundan çok
+   * yüksek gösterirdi.
+   *
+   * Burada veriliyor çünkü olasılık ham yol değerlerinden hesaplanır ve
+   * 10.000 yolu dışarı taşımak (özellikle istemciye serileştirmek)
+   * gereksiz yük olurdu.
+   */
+  goalTargets?: Array<{ amount: number; year: number }>;
 }
 
 export interface SimulationResult {
@@ -69,6 +163,8 @@ export interface SimulationResult {
   /** Portföyün ağırlıklı beklenen getirisi ve volatilitesi. */
   portfolioReturn: string;
   portfolioVolatility: string;
+  /** `goalTargets` ile aynı sırada: her hedefe ulaşma olasılığı. */
+  goalProbabilities: string[];
 }
 
 /** Tekrarlanabilir sonuçlar için basit ve hızlı PRNG (mulberry32). */
@@ -111,15 +207,14 @@ export function simulate(input: SimulationInput): SimulationResult {
   const contribution = input.annualContribution ?? 0;
 
   // Portföy düzeyinde beklenen getiri ve volatilite.
-  // NOT: volatilite basitçe ağırlıklı toplanıyor; gerçekte korelasyon
-  // matrisi gerekir ve çeşitlendirme volatiliteyi düşürür. Bu haliyle
-  // model KARAMSAR tarafta kalır — riski olduğundan büyük gösterir,
-  // ki bu yanılmanın güvenli yönüdür.
+  //
+  // Getiri doğrusaldır — ağırlıklı ortalama doğru sonucu verir.
+  // Volatilite değildir: korelasyon matrisi üzerinden hesaplanır,
+  // yoksa çeşitlendirmenin risk azaltıcı etkisi görünmez.
   const totalWeight = assumptions.reduce((a, x) => a + x.weight, 0) || 1;
   const mu =
     assumptions.reduce((a, x) => a + x.weight * x.expectedReturn, 0) / totalWeight;
-  const sigma =
-    assumptions.reduce((a, x) => a + x.weight * x.volatility, 0) / totalWeight;
+  const sigma = portfolioVolatility(assumptions, input.correlations);
 
   const rng = makeRng(input.seed ?? 42);
   const normal = makeNormal(rng);
@@ -170,6 +265,14 @@ export function simulate(input: SimulationInput): SimulationResult {
     probabilityOfLoss: new Decimal(lossCount).dividedBy(paths).toFixed(),
     portfolioReturn: new Decimal(mu).toFixed(),
     portfolioVolatility: new Decimal(sigma).toFixed(),
+    goalProbabilities: (input.goalTargets ?? []).map((goal) => {
+      // Hedef yılı simülasyon ufkunun dışındaysa en yakın yıla kırpılır;
+      // uydurma bir uzatma yapmaktansa elimizdeki son yılı kullanırız.
+      const year = Math.max(0, Math.min(years, Math.round(goal.year)));
+      const values = yearlyValues[year];
+      const hits = values.filter((v) => v >= goal.amount).length;
+      return new Decimal(hits).dividedBy(paths).toFixed();
+    }),
   };
 }
 

@@ -177,8 +177,15 @@ const fxErosion: Rule = {
     const share = tryExposure.ratioTo(total);
     if (share.lessThan("0.40")) return null;
 
-    // TL varlıkların reel erimesi: yıllık enflasyon farkı kadar
-    const inflationGap = new Decimal("0.33").minus("0.028"); // TR − USD
+    // TL varlıkların reel erimesi: yıllık enflasyon farkı kadar.
+    // Oranlar ayarlardan gelir; koda gömülü olduklarında kullanıcı
+    // kendi ülkesinin gerçeğini yansıtamıyordu.
+    const { inflation } = state.assumptions;
+    const inflationGap = new Decimal(inflation.TRY ?? "0.33").minus(
+      inflation.USD ?? "0.028",
+    );
+    // Fark negatifse (TL enflasyonu USD'nin altına inmişse) erime yok.
+    if (!inflationGap.isPositive()) return null;
     const annualErosion = tryExposure.times(inflationGap);
 
     return {
@@ -287,6 +294,22 @@ const taxHarvest: Rule = {
       Money.zero("USD"),
     );
 
+    // Mahsup edilebilecek zarar, kârı aşamaz: fazlası o yılın vergisini
+    // daha da azaltmaz.
+    const offsettable = Decimal.min(
+      new Decimal(harvestable.toDb()),
+      realizedGain,
+    );
+
+    // Oran girilmediyse tutar telaffuz edilmez. Uydurma bir oranla
+    // "şu kadar tasarruf edersiniz" demek, olmayan bir kesinlik satmaktır.
+    const rate = new Decimal(state.assumptions.capitalGainsRate);
+    const savingSentence = rate.greaterThan(0)
+      ? ` %${rate.times(100).toDecimalPlaces(1)} sermaye kazancı oranıyla bu, ` +
+        `yaklaşık ${formatMoney(usd(offsettable.times(rate)), { compact: true })} ` +
+        `vergi tasarrufu demek.`
+      : " Sermaye kazancı oranınızı Ayarlar'a girerseniz tasarruf tutarını da hesaplarım.";
+
     return {
       id: "taxHarvest",
       ruleKey: "taxHarvest",
@@ -296,7 +319,8 @@ const taxHarvest: Rule = {
         `Bu yıl ${formatMoney(usd(realizedGain))} gerçekleşmiş kârınız var. ` +
         `${losers.length} pozisyon zararda ve toplam ` +
         `${formatMoney(harvestable, { compact: true })} gerçekleşmemiş zarar taşıyor. ` +
-        `Zararı realize etmek vergiye tabi kârı azaltabilir.`,
+        `Bunun ${formatMoney(usd(offsettable), { compact: true })} kadarı kârdan ` +
+        `mahsup edilebilir.${savingSentence}`,
       action:
         "Vergi mevzuatınıza göre değerlendirin; benzer bir enstrümanla pozisyonu " +
         "koruyarak zararı realize etmek mümkün olabilir.",

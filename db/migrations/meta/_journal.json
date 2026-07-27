@@ -36,6 +36,41 @@
       "when": 1785102570695,
       "tag": "0004_organic_adam_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1785168527547,
+      "tag": "0005_chemical_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1785169415460,
+      "tag": "0006_tiny_sebastian_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1785175661690,
+      "tag": "0007_optimal_agent_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1785175779467,
+      "tag": "0008_freezing_black_bolt",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1785176196282,
+      "tag": "0009_aspiring_tag",
+      "breakpoints": true
     }
   ]
 }

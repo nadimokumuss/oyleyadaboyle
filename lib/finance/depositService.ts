@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { assets, deposits, withholdingRates } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { Money } from "@/lib/money";
+import { loadAssumptions, inflationFor } from "@/lib/assumptions";
 import {
   accrue,
   earningsRate,
@@ -22,20 +23,6 @@ import {
  * Stopaj oranı burada çözülür: kullanıcı elle bir oran girdiyse o,
  * girmediyse vade ve para birimine göre DB'deki kademeli tablodan.
  */
-
-/** Türkiye yıllık TÜFE varsayımı — ayarlardan güncellenebilir olmalı. */
-const DEFAULT_INFLATION: Record<string, string> = {
-  TRY: "0.33",
-  USD: "0.028",
-  EUR: "0.021",
-};
-
-/** Karşı-olgusal karşılaştırma için referans yıllık getiriler. */
-const BENCHMARKS = [
-  { key: "usd_deposit", label: "USD mevduat", annualReturn: "0.035" },
-  { key: "gold", label: "Altın", annualReturn: "0.08" },
-  { key: "sp500", label: "S&P 500", annualReturn: "0.10" },
-] as const;
 
 const MS_PER_DAY = 86_400_000;
 
@@ -124,6 +111,8 @@ export interface DepositView {
 
 export function loadDeposits(now = new Date()): DepositView[] {
   const rules = loadWithholdingRules();
+  // Varsayımlar mevduat başına değil, liste başına bir kez okunur.
+  const assumptions = loadAssumptions();
 
   const rows = db
     .select({ deposit: deposits, asset: assets })
@@ -136,11 +125,11 @@ export function loadDeposits(now = new Date()): DepositView[] {
     const terms = buildTerms(deposit, asset.currency, rules);
     const snap = accrue(terms, now);
     const rate = earningsRate(terms, now, true);
-    const inflation = DEFAULT_INFLATION[asset.currency] ?? "0.03";
+    const inflation = inflationFor(asset.currency, assumptions);
     const real = analyzeRealReturn(terms, inflation);
 
     const elapsedYears = snap.elapsedYears;
-    const counterfactuals = BENCHMARKS.map((b) => {
+    const counterfactuals = assumptions.benchmarks.map((b) => {
       const value = counterfactualValue(terms.principal, b.annualReturn, elapsedYears);
       return {
         key: b.key,

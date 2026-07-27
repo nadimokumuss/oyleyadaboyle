@@ -7,7 +7,7 @@ import { db } from "@/db/client";
 import { settings, targets, assets, transactions, withholdingRates } from "@/db/schema";
 import { assertAuth } from "@/lib/session";
 import { setPin, verifyPin } from "@/lib/auth";
-import { validate, settingsSchema } from "@/lib/schemas";
+import { validate, settingsSchema, assumptionsSchema } from "@/lib/schemas";
 import { importPositionsCsv } from "@/lib/services/import";
 import type { FormState } from "./assets";
 
@@ -43,6 +43,8 @@ export async function saveSettingsAction(
       horizonYears: d.horizonYears,
       idleCashThreshold: d.idleCashThreshold,
       concentrationThreshold: d.concentrationThreshold,
+      lotMethod: d.lotMethod,
+      longTermDays: d.longTermDays,
       updatedAt: new Date().toISOString(),
     })
     .where(eq(settings.id, "singleton"))
@@ -50,6 +52,50 @@ export async function saveSettingsAction(
 
   revalidateAll();
   return { savedId: "settings" };
+}
+
+/* ------------------------------------------------------------------ */
+/* Varsayımlar — enflasyon ve referans getiriler                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Ayrı bir eylem, çünkü bunlar "tercih" değil **model girdisi**:
+ * reel getiriyi ve karşı-olgusal karşılaştırmayı doğrudan üretirler.
+ * Genel ayarlarla aynı forma sıkıştırmak ikisini de bulanıklaştırırdı.
+ * `saveTargetsAction` ile aynı desen.
+ */
+export async function saveAssumptionsAction(
+  _p: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  await assertAuth();
+
+  const result = validate(assumptionsSchema, formData);
+  if (!result.success) return { fieldErrors: result.fieldErrors };
+
+  const d = result.data!;
+  db.update(settings)
+    .set({
+      inflationRates: {
+        TRY: d.inflationTRY,
+        USD: d.inflationUSD,
+        EUR: d.inflationEUR,
+        GBP: d.inflationGBP,
+        CHF: d.inflationCHF,
+      },
+      benchmarkReturns: {
+        usd_deposit: d.benchmark_usd_deposit,
+        gold: d.benchmark_gold,
+        sp500: d.benchmark_sp500,
+      },
+      capitalGainsRate: d.capitalGainsRate,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(settings.id, "singleton"))
+    .run();
+
+  revalidateAll();
+  return { savedId: "assumptions" };
 }
 
 /* ------------------------------------------------------------------ */

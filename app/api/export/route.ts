@@ -4,11 +4,14 @@ import { eq } from "drizzle-orm";
 import { computeNetWorth } from "@/lib/valuation";
 import { loadSnapshots } from "@/lib/snapshot";
 import { assertAuth } from "@/lib/session";
+import { ensureSettingsRow } from "@/lib/auth";
+import { loadTaxReport } from "@/lib/finance/taxService";
+import type { LotMethod } from "@/lib/finance/realized";
 
 export const dynamic = "force-dynamic";
 
 /**
- * CSV dışa aktarım: /api/export?type=positions|transactions|snapshots
+ * CSV dışa aktarım: /api/export?type=positions|transactions|snapshots|tax
  *
  * Excel'in Türkçe yerel ayarında CSV'yi doğru açması için ayraç olarak
  * noktalı virgül kullanılır ve dosya BOM ile başlar — aksi halde Türkçe
@@ -50,6 +53,40 @@ export async function GET(request: Request) {
         ]),
       ];
       filename = "islemler";
+      break;
+    }
+
+    case "tax": {
+      const cfg = ensureSettingsRow();
+      const report = await loadTaxReport({
+        method: cfg.lotMethod as LotMethod,
+        longTermDays: cfg.longTermDays,
+      });
+
+      rows = [
+        [
+          "Yıl", "Tarih", "Varlık", "Sembol", "Miktar", "Hasılat", "Maliyet",
+          "K/Z", "Para birimi", "K/Z (USD)", "Kısa vade", "Uzun vade", "Tutma (gün)",
+        ],
+        ...report.years.flatMap((y) =>
+          y.lines.map((l) => [
+            String(y.year),
+            l.date,
+            l.assetName,
+            l.symbol ?? "",
+            l.quantity,
+            l.proceeds,
+            l.costBasis,
+            l.gain,
+            l.currency,
+            l.gainUsd,
+            l.shortTermGain,
+            l.longTermGain,
+            String(l.maxHoldingDays),
+          ]),
+        ),
+      ];
+      filename = `vergi-${report.method}`;
       break;
     }
 

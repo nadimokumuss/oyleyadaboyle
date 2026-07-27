@@ -9,6 +9,7 @@ import { FxConverter } from "@/lib/fx";
 import { computeVentureMetrics, cashProjection, type VentureMetrics } from "./venture";
 import { summarize, projectCash, type FlowItem, type CashflowSummary } from "./cashflow";
 import { loadDeposits } from "./depositService";
+import { loadDividendAnalyses } from "./dividendService";
 import { loadProperties, loadVehicles } from "./assetService";
 import { loadLiabilities } from "@/lib/services/liabilities";
 
@@ -141,6 +142,25 @@ export async function loadCashflow(now = new Date()): Promise<CashflowView> {
         passive: true,
       });
     }
+  }
+
+  // --- Temettü, staking ve dağıtım geliri ---
+  //
+  // Bunlar eskiden kapsama oranına hiç girmiyordu: pasif gelirin bir
+  // kısmı görünmez olduğu için finansal bağımsızlığa olan mesafe
+  // olduğundan uzak görünüyordu.
+  //
+  // Tahmin son 12 ayın tekrarlayacağı varsayımına dayanır — bir temettü
+  // takvimi değildir, şirket kesintiye giderse bunu bilemeyiz.
+  for (const d of loadDividendAnalyses(now)) {
+    const monthly = d.analysis.monthlyAverage;
+    if (!monthly.isPositive()) continue;
+    incomes.push({
+      label: `${d.assetName} temettüsü`,
+      monthlyUsd: toUsd(monthly),
+      source: "dividend",
+      passive: true,
+    });
   }
 
   // --- Kira geliri ve gayrimenkul giderleri ---

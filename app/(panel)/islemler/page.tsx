@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Decimal from "decimal.js";
-import { PageShell, EmptyState, Card } from "@/components/PageShell";
+import { PageShell, EmptyState, Card, ScrollTable } from "@/components/PageShell";
 import { db } from "@/db/client";
 import { transactions, assets } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -124,7 +124,7 @@ export default async function IslemlerPage({
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-line bg-surface-raised">
+      <ScrollTable label="İşlem geçmişi tablosu" className="rounded-lg border border-line bg-surface-raised">
         <table className="w-full min-w-[52rem] text-sm">
           <caption className="sr-only">İşlem geçmişi</caption>
           <thead>
@@ -193,7 +193,7 @@ export default async function IslemlerPage({
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
 
       <Summary rows={rows.map((r) => r.tx)} />
 

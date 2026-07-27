@@ -14,7 +14,7 @@ export function PageShell({
   className?: string;
 }) {
   return (
-    <div className={cn("mx-auto w-full max-w-7xl px-6 py-6", className)}>
+    <div className={cn("mx-auto w-full max-w-7xl px-4 py-6 sm:px-6", className)}>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-balance text-xl font-semibold text-ink">{title}</h1>
@@ -46,6 +46,40 @@ export function EmptyState({
         {description}
       </p>
       <div className="mt-5">{action}</div>
+    </div>
+  );
+}
+
+/**
+ * Yatay kayan tablo kabı.
+ *
+ * Finans tabloları daraltılamaz — sütun atmak veriyi gizlemek olur, bu yüzden
+ * dar ekranda yatay kaydırma bilinçli tercih. Ama kaydırılabilir bir kutu
+ * klavyeyle erişilemezse ekran okuyucu ve klavye kullanıcısı sağdaki
+ * sütunlara hiç ulaşamaz: `tabIndex={0}` + `role="region"` bunu çözer.
+ *
+ * `label` ekran okuyucunun bölgeyi adlandırması için zorunlu.
+ */
+export function ScrollTable({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      role="region"
+      aria-label={label}
+      tabIndex={0}
+      className={cn(
+        "overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        className,
+      )}
+    >
+      {children}
     </div>
   );
 }

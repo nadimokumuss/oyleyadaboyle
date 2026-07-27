@@ -3,6 +3,7 @@ import { Money, formatMoney, formatPercent, formatQuantity } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import type { PositionView } from "@/lib/finance/portfolioService";
 import { DisposeButton } from "@/components/DisposeButton";
+import { ScrollTable } from "@/components/PageShell";
 import type { CashAccount } from "@/components/form/FundingSource";
 import Link from "next/link";
 
@@ -21,7 +22,10 @@ export function PositionsTable({
   cashAccounts?: CashAccount[];
 }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-surface-raised">
+    <ScrollTable
+      label="Pozisyonlar tablosu"
+      className="rounded-lg border border-line bg-surface-raised"
+    >
       <table className="w-full min-w-[64rem] text-sm">
         <caption className="sr-only">Portföy pozisyonları</caption>
         <thead>
@@ -163,7 +167,7 @@ export function PositionsTable({
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   );
 }
 

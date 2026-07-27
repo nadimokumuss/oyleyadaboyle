@@ -29,7 +29,7 @@ varlıklarınızı formlardan siz eklersiniz.
 | `npm run dev` | Geliştirme modunda çalıştırır |
 | `npm run build` / `npm start` | Üretim derlemesi ve çalıştırma |
 | `npm run typecheck` | TypeScript denetimi |
-| `npm test` | Finans çekirdeği testleri (358 test) |
+| `npm test` | Finans çekirdeği ve otomasyon testleri (473 test) |
 | `npm run db:generate` | Şema değişikliğinden yeni göç dosyası üretir |
 | `npm run db:migrate` | Şema değişikliklerini uygular |
 | `npm run db:seed` | Örnek senaryo yükler — **veritabanı doluysa reddeder** |
@@ -89,12 +89,14 @@ yeniden açar.
 | Nakit Akışı | Gelir-gider dengesi, pasif gelir kapsama oranı |
 | Borçlar | Kredi/ipotek, ödeme planı, toplam faiz maliyeti, kaldıraç, erken kapatma |
 | İşlemler | Tüm para hareketleri, her biri geri alınabilir |
+| Vergi | Takvim yılı bazında gerçekleşen K/Z, kısa/uzun vade ayrımı, stopaj |
 | Keşfet | Enstrüman arama, 1 yıllık grafik, teknik göstergeler, izleme listesi |
 | Plan | Almayı düşündükleriniz — nakit yetiyor mu, alım sonrası dağılım ne olur |
 | Karşılaştır | Dağılım önerisi ve "bu mu şu mu" yatırım simülasyonu |
 | Fırsatlar | 10 kurallı gelir üretim motoru |
-| Senaryo | Monte Carlo projeksiyonu ve kriz stres testleri |
-| Ayarlar | Tercihler, hedefler, stopaj, 2FA, erişim kısıtlama, veri yönetimi |
+| Senaryo | Monte Carlo projeksiyonu, kriz stres testleri, finansal hedefler |
+| Bildirimler | Tetiklenen alarmlar, otomatik işlenen hareketler, zamanlayıcı günlüğü |
+| Ayarlar | Tercihler, varsayımlar, hedefler, stopaj, bildirimler, 2FA, erişim kısıtlama, veri yönetimi |
 
 ## Veri girişi
 
@@ -126,13 +128,90 @@ Panel her değerin kaynağını rozetle gösterir — hepsi aynı güvenilirlikt
 > **yoktur**. Bu iki sınıfın değerleri modellenir ve arayüzde kesikli
 > çerçeveyle ayrılır. Ekspertiz girerseniz model devre dışı kalır.
 >
-> **Sınır 2:** Hisseler için temel analiz verisi (F/K, temettü verimi)
+> **Sınır 2:** Hisseler için temel analiz verisi (F/K, ilan edilmiş temettü)
 > ücretsiz-anahtarsız erişilemiyor. `/kesfet` sayfasındaki göstergeler
-> **yalnızca fiyat geçmişinden hesaplanan teknik göstergelerdir**.
+> **yalnızca fiyat geçmişinden hesaplanan teknik göstergelerdir**. Aynı
+> nedenle temettü projeksiyonu bir takvim değil, **son 12 ayın
+> tekrarlayacağı varsayımıdır** — şirket kesintiye giderse panel bunu
+> önceden bilemez.
 
 Döviz kurları Frankfurter (ECB referans) üzerinden alınır. İnternet
 kesilirse panel çökmez: son bilinen değerlerle çalışır ve verinin bayat
 olduğunu açıkça belirtir.
+
+---
+
+## Vergi ve gerçekleşen kâr/zarar
+
+`/vergi` sayfası takvim yılı bazında elden çıkarma olaylarını listeler:
+hangi tarihte, hangi lot'tan, ne kadar süre elde tutulmuş, ne kadar kâr.
+
+**Lot seçim yöntemi seçilebilir** — FIFO, LIFO veya HIFO. Üçü de "doğru"dur;
+hangisinin geçerli olduğu bulunduğunuz ülkenin mevzuatına bağlıdır ve seçim
+gerçekleşen kârı doğrudan değiştirir. Aynı satış FIFO'da 1.732, LIFO'da
+1.232 kâr gösterebilir.
+
+Kısa/uzun vade ayrımı ayarlanabilir bir gün eşiğine göre yapılır
+(varsayılan 365).
+
+> **Bu bir vergi hesaplama aracı değildir.** İstisnalar, endeksleme ve
+> indirimler modellenmez; mevzuat ülkeye göre değişir. Rakamlar beyanınız
+> için başlangıç noktasıdır. USD karşılıkları bugünkü kurla hesaplanır —
+> beyan yerel parada yapılıyorsa satır bazındaki tutarları kullanın.
+
+---
+
+## Endekse karşı
+
+Servet eğrisinin üzerine S&P 500 çizilir ve "aynı parayı endekse
+koysaydınız" farkı gösterilir. %18 getiri tek başına bir şey söylemez;
+endeks %30 yaptıysa kötüdür.
+
+Karşılaştırma yalnızca ortak tarihleri kullanır ve **ara dönem para
+giriş-çıkışını yok sayar** — dönem içinde ciddi katkı yaptıysanız fark
+olduğundan iyi görünür. Para-ağırlıklı getiri için Portföy sayfasındaki
+XIRR'a bakın.
+
+---
+
+## Panel kapalıyken de çalışır
+
+Arka planda dakikada bir uyanan bir zamanlayıcı var. Yaptıkları:
+
+| İş | Sıklık | Ne yapar |
+|---|---|---|
+| Düzenli hareketler | günlük | Maaş, kira, abonelik gibi tekrarlayanları işler |
+| Kredi taksitleri | günlük | `paymentsMade` ilerler, istenirse nakitten düşer |
+| Servet anlık görüntüsü | günlük | Servet eğrisi paneli açmasanız da birikir |
+| Tutarlılık denetimi | günlük | Nakit eksiye düşmüş mü, ödemesiz varlık var mı |
+| Fiyat alarmları | 5 dakikada bir | Eşiği aşan varsa bildirim üretir |
+| Bildirim gönderimi | dakikada bir | Bekleyenleri webhook'a yollar |
+
+**Hiçbir iş aynı dönem için iki kez çalışmaz.** `job_runs` tablosundaki
+`(jobKey, runKey)` benzersizliği bunu veritabanı düzeyinde garanti eder —
+bellekteki bir bayrak sunucu yeniden başlayınca sıfırlanır ve para hareketi
+üreten bir iş için bu çift kayıt demektir. İş hata verirse rezervasyon
+silinir ve bir sonraki tur yeniden dener.
+
+Panel bir hafta kapalı kaldıysa açıldığında **kaçırılan dönemler telafi
+edilir**: aylık bir maaş kaydı beş ay sonra beş satır üretir, bir tane değil.
+
+Otomatik üretilen kayıtlar normal `transactions` satırlarıdır — İşlemler
+sayfasında görünür ve tek tek geri alınabilir.
+
+**Zamanlayıcı Ayarlar'dan kapatılabilir.** Kredi taksitlerinin nakitten
+düşmesi ayrıca her kredi için tek tek açılır; varsayılan kapalıdır, çünkü
+arka planda çalışan bir işin paranızı hareket ettirmesi açıkça istenmesi
+gereken bir şeydir.
+
+### Bildirimler
+
+Bildirim önce veritabanına **kaydedilir**, sonra gönderilmeye çalışılır.
+Webhook çalışmasa da uyarı kaybolmaz; panelde birikir. Tersi sırada geçici
+bir ağ hatası bildirimi tamamen yok ederdi.
+
+Kanal olarak webhook seçildi (Telegram bot, Discord, kendi ucunuz): tek
+alan, sıfır bağımlılık ve verinin hangi servise gittiğini siz seçiyorsunuz.
 
 ---
 
@@ -245,10 +324,15 @@ Bu değerler **temsilîdir**; resmî kaynaklardan güncellenmelidir:
 
 | Ne | Nerede |
 |---|---|
-| Konut fiyat endeksleri, enflasyon | `db/seeds/indices.json` |
+| **Enflasyon ve referans getiriler** | **Ayarlar → Varsayımlar** |
+| Konut fiyat endeksleri | `db/seeds/indices.json` |
 | Araç amortisman eğrileri | `db/seeds/depreciation.json` |
 | Stopaj oranları | Ayarlar sayfası (`withholding_rates` tablosu) |
-| Getiri/risk varsayımları | `lib/engine/montecarlo.ts` |
+| Getiri/risk/korelasyon varsayımları | `lib/engine/montecarlo.ts` |
+
+Enflasyon artık koda gömülü değil: reel getiriyi üreten sayıyı Ayarlar
+sayfasından kendiniz girersiniz. Girmezseniz `lib/assumptions.ts` içindeki
+yedek değerler kullanılır — onlar da temsilîdir.
 
 ---
 
@@ -256,13 +340,24 @@ Bu değerler **temsilîdir**; resmî kaynaklardan güncellenmelidir:
 
 **Tek kopya çalışır.** Veritabanı tek bir SQLite dosyasıdır. İkinci bir kopya
 aynı diske yazarsa veri bozulur — bu yüzden `railway.json` içinde
-`numReplicas: 1` sabitlenmiştir. Yatay ölçekleme istiyorsanız önce veritabanı
-katmanı değişmelidir.
+`numReplicas: 1` sabitlenmiştir. Arka plan zamanlayıcısı da bu kısıta yaslanır:
+her kopya kendi döngüsünü çalıştıracağı için ikinci bir kopya aynı işi paralel
+denerdi. Yatay ölçekleme istiyorsanız önce veritabanı katmanı değişmeli, sonra
+zamanlayıcıya dağıtık bir kilit eklenmelidir.
 
 **Sunucusuz platformlar uygun değildir.** Vercel gibi ortamlarda dosya sistemi
 geçicidir; veritabanı her dağıtımda silinir. Ayrıca `app/api/stream/route.ts`
-süresiz açık bir SSE bağlantısı tutar, sunucusuz fonksiyon ömrü buna yetmez.
+süresiz açık bir SSE bağlantısı tutar ve `lib/scheduler.ts` sürekli çalışan
+bir döngüdür — sunucusuz fonksiyon ömrü ikisine de yetmez.
 Ayrıntı: [DAGITIM.md](DAGITIM.md).
+
+**Vergi rakamları beyan için başlangıç noktasıdır.** İstisnalar, endeksleme
+ve indirimler modellenmez; mevzuat ülkeye göre değişir. Panel vergi
+hesaplamaz, gerçekleşen kâr/zararı raporlar.
+
+**Temettü tahmini geçmişe dayanır.** İlan edilmiş temettü verisi
+ücretsiz-anahtarsız erişilemediği için önümüzdeki 12 ay son 12 aya eşit
+kabul edilir. Şirket kesintiye giderse panel bunu önceden bilemez.
 
 **BIST verisi ~15 dakika gecikmelidir.** Yahoo Finance'in anahtarsız ucundan
 gelir; arayüz gecikmeyi rozetle belirtir.
@@ -287,6 +382,13 @@ app/
 lib/
   money.ts     Para aritmetiğinin tek kaynağı (birim güvenliği burada)
   fx.ts        Kur çevrimi ve getiri ayrıştırması
+  assumptions.ts Enflasyon ve referans getiriler — ayarlardan okunur
+  finance/realized.ts   Vergi için lot bazlı gerçekleşen K/Z olayları
+  finance/dividends.ts  Temettü verimi ve ileriye dönük tahmin
+  finance/benchmark.ts  Endeksle karşılaştırma
+  finance/goals.ts      Hedef ilerlemesi ve finansal bağımsızlık
+  scheduler.ts Arka plan döngüsü ve idempotency defteri
+  jobs.ts      Zamanlayıcının çalıştırdığı işlerin listesi
   finance/     Faiz, maliyet esası, amortisman, kredi, sinyal motorları
   market/      Fiyat sağlayıcıları, önbellek, hız sınırlayıcı
   engine/      Fırsat kuralları, Monte Carlo, dağılım önerisi

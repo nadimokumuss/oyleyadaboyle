@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
 import Decimal from "decimal.js";
 import { Money } from "@/lib/money";
-import { simulate, runStressTest, STRESS_SCENARIOS, type StressAsset } from "./montecarlo";
+import {
+  simulate,
+  runStressTest,
+  portfolioVolatility,
+  correlation,
+  DEFAULT_CORRELATION,
+  STRESS_SCENARIOS,
+  type StressAsset,
+} from "./montecarlo";
 
 const usd = (n: number | string) => Money.of(n, "USD");
 
@@ -100,6 +108,70 @@ describe("simulate — Monte Carlo", () => {
     const mu = Number(r.portfolioReturn);
     expect(mu).toBeGreaterThan(0.005);
     expect(mu).toBeLessThan(0.07);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+describe("portfolioVolatility — korelasyon", () => {
+  const equity = { key: "equity", label: "Hisse", weight: 0.5, expectedReturn: 0.07, volatility: 0.2 };
+  const crypto = { key: "crypto", label: "Kripto", weight: 0.5, expectedReturn: 0.12, volatility: 0.6 };
+
+  it("tek varlıkta sınıfın kendi volatilitesini verir", () => {
+    const sigma = portfolioVolatility([{ ...equity, weight: 1 }]);
+    expect(sigma).toBeCloseTo(0.2, 10);
+  });
+
+  it("ağırlıklar normalize edilir — toplamları 1 olmasa da sonuç aynı", () => {
+    const a = portfolioVolatility([equity, crypto]);
+    const b = portfolioVolatility([
+      { ...equity, weight: 5 },
+      { ...crypto, weight: 5 },
+    ]);
+    expect(a).toBeCloseTo(b, 12);
+  });
+
+  it("ρ=1 olduğunda ağırlıklı toplama eşitlenir", () => {
+    // Eski (hatalı) model her zaman bunu varsayıyordu.
+    const perfect = { "crypto|equity": 1 };
+    const sigma = portfolioVolatility([equity, crypto], perfect);
+    expect(sigma).toBeCloseTo(0.5 * 0.2 + 0.5 * 0.6, 10);
+  });
+
+  it("ρ<1 olduğunda çeşitlendirme volatiliteyi düşürür", () => {
+    const weighted = 0.5 * 0.2 + 0.5 * 0.6;
+    const sigma = portfolioVolatility([equity, crypto]);
+    expect(sigma).toBeLessThan(weighted);
+  });
+
+  it("düşük korelasyon daha çok düşürür", () => {
+    const high = portfolioVolatility([equity, crypto], { "crypto|equity": 0.9 });
+    const low = portfolioVolatility([equity, crypto], { "crypto|equity": 0.1 });
+    expect(low).toBeLessThan(high);
+  });
+
+  it("negatif korelasyon riski en çok azaltır", () => {
+    const hedged = portfolioVolatility([equity, crypto], { "crypto|equity": -1 });
+    const uncorrelated = portfolioVolatility([equity, crypto], { "crypto|equity": 0 });
+    expect(hedged).toBeLessThan(uncorrelated);
+    // ρ=−1'de σ = |w₁σ₁ − w₂σ₂|
+    expect(hedged).toBeCloseTo(Math.abs(0.5 * 0.2 - 0.5 * 0.6), 10);
+  });
+
+  it("boş portföyde sıfır döner, bölme hatası vermez", () => {
+    expect(portfolioVolatility([])).toBe(0);
+  });
+
+  it("korelasyon simetriktir — sıra önemsiz", () => {
+    expect(correlation("equity", "crypto")).toBe(correlation("crypto", "equity"));
+  });
+
+  it("aynı sınıf her zaman 1", () => {
+    expect(correlation("venture", "venture")).toBe(1);
+  });
+
+  it("tabloda olmayan çift varsayılana düşer", () => {
+    expect(correlation("bilinmeyen", "başkası")).toBe(DEFAULT_CORRELATION);
   });
 });
 

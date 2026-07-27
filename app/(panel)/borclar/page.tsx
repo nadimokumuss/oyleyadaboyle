@@ -6,12 +6,22 @@ import { computeNetWorth } from "@/lib/valuation";
 import { Money, formatMoney, formatPercent, formatNumber } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { SettleLoanButton } from "@/components/SettleLoanButton";
+import { AutopayForm } from "@/components/forms/AutopayForm";
+import { db } from "@/db/client";
+import { assets } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
 export default async function BorclarPage() {
   const loans = await loadLiabilities();
   const nw = await computeNetWorth();
+
+  const cashAccounts = db
+    .select({ id: assets.id, name: assets.name, currency: assets.currency })
+    .from(assets)
+    .where(eq(assets.kind, "cash"))
+    .all();
 
   if (loans.length === 0) {
     return (
@@ -188,6 +198,15 @@ export default async function BorclarPage() {
                 </p>
                 <div className="mt-3">
                   <SettleLoanButton id={l.id} name={l.name} />
+                </div>
+
+                <div className="mt-3 border-t border-line pt-3">
+                  <AutopayForm
+                    loanId={l.id}
+                    autoPay={l.autoPay}
+                    paymentAssetId={l.paymentAssetId}
+                    accounts={cashAccounts}
+                  />
                 </div>
               </div>
             </article>

@@ -102,14 +102,28 @@ export function AccrualTicker({ deposit }: { deposit: DepositView }) {
         <MaturityBadge deposit={deposit} />
       </header>
 
-      {/* Ana sayaç: stopaj sonrası eldeki toplam */}
+      {/* Ana sayaç: stopaj sonrası eldeki toplam.
+          Saniyede dört kez değiştiği için ekran okuyucudan gizlenir —
+          canlı bölge yapılsaydı hiç susmazdı. Yerine hemen altında,
+          sunucu anlık görüntüsünden türeyen sabit bir özet sunulur. */}
       <div className="mt-4">
         <p className="text-xs text-ink-faint">Net bakiye (stopaj sonrası)</p>
-        <p className="num mt-0.5 text-3xl font-semibold tabular-nums text-ink">
-          {formatMoney(netBalance)}
-        </p>
-        <p className="num mt-1 text-sm text-gain">
-          {formatMoney(net, { signed: true })} net kazanç
+        <div aria-hidden="true">
+          <p className="num mt-0.5 text-3xl font-semibold tabular-nums text-ink">
+            {formatMoney(netBalance)}
+          </p>
+          <p className="num mt-1 text-sm text-gain">
+            {formatMoney(net, { signed: true })} net kazanç
+          </p>
+        </div>
+        <p className="sr-only">
+          {formatMoney(
+            Money.of(deposit.snapshot.grossInterest, currency)
+              .times(new Decimal(1).minus(terms.withholdingRate))
+              .plus(terms.principal),
+          )}
+          , sayfa açıldığı andaki değer. Sayaç canlı ilerliyor; güncel tutar için
+          sayfayı yenileyin.
         </p>
       </div>
 

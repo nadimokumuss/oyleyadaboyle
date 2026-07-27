@@ -1,14 +1,43 @@
 import Decimal from "decimal.js";
-import { PageShell, Card } from "@/components/PageShell";
+import { PageShell, Card, ScrollTable } from "@/components/PageShell";
+import { loadDividendAnalyses } from "@/lib/finance/dividendService";
 import { loadCashflow } from "@/lib/finance/cashflowService";
 import { INCOME_LABEL, EXPENSE_LABEL } from "@/lib/finance/cashflow";
 import { Money, formatMoney, formatPercent } from "@/lib/money";
 import { cn } from "@/lib/cn";
+import { db } from "@/db/client";
+import { assets } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { listRecurring } from "@/lib/services/recurring";
+import { RecurringForm } from "@/components/forms/RecurringForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function NakitAkisiPage() {
   const cf = await loadCashflow();
+
+  const dividendRows = loadDividendAnalyses();
+
+  const cashAccounts = db
+    .select({ id: assets.id, name: assets.name, currency: assets.currency })
+    .from(assets)
+    .where(eq(assets.kind, "cash"))
+    .all();
+
+  const recurringRows = listRecurring().map(({ rec, assetName }) => ({
+    id: rec.id,
+    assetId: rec.assetId,
+    assetName,
+    label: rec.label,
+    type: rec.type,
+    amount: rec.amount,
+    currency: rec.currency,
+    frequency: rec.frequency,
+    startDate: rec.startDate,
+    endDate: rec.endDate,
+    nextRunDate: rec.nextRunDate,
+    active: rec.active,
+  }));
 
   const coverage = cf.coverageRatio ? new Decimal(cf.coverageRatio) : null;
   const net = cf.netMonthly;
@@ -121,6 +150,67 @@ export default async function NakitAkisiPage() {
           içermez. Sadece bugünkü gelir-gider dengesi devam ederse nakdin nasıl
           seyredeceğini gösterir.
         </p>
+      </Card>
+
+      {dividendRows.length > 0 && (
+        <Card
+          title="Temettü ve dağıtım geliri"
+          hint="son 12 ay"
+          className="mt-4"
+        >
+          <ScrollTable label="Temettü tablosu">
+            <table className="w-full min-w-[40rem] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs text-ink-faint">
+                  <th className="py-2 pr-4 font-medium">Varlık</th>
+                  <th className="py-2 pr-4 text-right font-medium">Son 12 ay</th>
+                  <th className="py-2 pr-4 text-right font-medium">Maliyete göre verim</th>
+                  <th className="py-2 pr-4 text-right font-medium">Aylık ortalama</th>
+                  <th className="py-2 text-right font-medium">Son ödeme</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dividendRows.map((d) => (
+                  <tr key={d.assetId} className="border-b border-line/50 last:border-0">
+                    <td className="py-2 pr-4 text-ink">{d.symbol ?? d.assetName}</td>
+                    <td className="num py-2 pr-4 text-right text-ink">
+                      {formatMoney(d.analysis.trailingTwelveMonths)}
+                    </td>
+                    <td className="num py-2 pr-4 text-right text-gain">
+                      {d.analysis.yieldOnCost
+                        ? formatPercent(d.analysis.yieldOnCost, { decimals: 2 })
+                        : "—"}
+                    </td>
+                    <td className="num py-2 pr-4 text-right text-ink-muted">
+                      {formatMoney(d.analysis.monthlyAverage, { compact: true })}
+                    </td>
+                    <td className="num py-2 text-right text-ink-faint">
+                      {d.analysis.lastPaymentDate ?? "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollTable>
+
+          <p className="mt-3 text-pretty text-xs text-ink-faint">
+            <strong className="text-ink-muted">Maliyete göre verim</strong>, güncel
+            fiyata göre verimden farklıdır: ödediğiniz paraya göre hesaplanır, o
+            yüzden değerlenmiş bir pozisyonda daha yüksek çıkar.
+            İleriye dönük tahmin son 12 ayın tekrarlayacağı varsayımına dayanır —
+            bu bir temettü takvimi değildir, ilan edilmiş temettü verisi
+            ücretsiz-anahtarsız erişilebilir olmadığı için şirket kesintiye
+            giderse bunu bilemeyiz.
+          </p>
+        </Card>
+      )}
+
+      <Card
+        title="Düzenli hareketler"
+        hint="panel kapalıyken de işlenir"
+        className="mt-4"
+      >
+        <RecurringForm accounts={cashAccounts} rows={recurringRows} />
       </Card>
     </PageShell>
   );

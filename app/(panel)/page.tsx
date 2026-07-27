@@ -7,6 +7,8 @@ import { assets } from "@/db/schema";
 import { loadSnapshots } from "@/lib/snapshot";
 import { runAudit } from "@/lib/services/audit";
 import { AuditBanner } from "@/components/AuditBanner";
+import { BenchmarkCurve } from "@/components/BenchmarkCurve";
+import { loadBenchmark } from "@/lib/finance/benchmarkService";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +16,8 @@ export default async function Dashboard() {
   const assetCount = db.select({ id: assets.id }).from(assets).all().length;
   const history = loadSnapshots();
   const findings = runAudit();
+  // Yeterli geçmiş veya endeks verisi yoksa null döner ve grafik hiç çizilmez.
+  const benchmark = assetCount > 0 ? await loadBenchmark("sp500") : null;
 
   return (
     <PageShell
@@ -71,6 +75,12 @@ export default async function Dashboard() {
           <AuditBanner findings={findings} />
           <DashboardLive />
           <WealthCurve points={history} />
+          {benchmark && (
+            <BenchmarkCurve
+              comparison={benchmark.comparison}
+              benchmarkLabel={benchmark.label}
+            />
+          )}
         </div>
       )}
     </PageShell>

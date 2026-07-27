@@ -15,12 +15,17 @@ import { computeNetWorth, type NetWorth } from "@/lib/valuation";
  * kayıt güncellenir, çoğalmaz.
  */
 
-async function captureSnapshot(nw?: NetWorth): Promise<void> {
+/**
+ * Anlık görüntüyü yazar.
+ *
+ * @returns yazıldıysa true, bayat veri nedeniyle atlandıysa false
+ */
+export async function captureSnapshotFor(nw?: NetWorth): Promise<boolean> {
   const netWorth = nw ?? (await computeNetWorth());
 
   // Kur veya fiyatlar bayatsa anlık görüntü almayız — bayat veriyi
   // tarihe kalıcı olarak yazmak, geçmişi kalıcı olarak bozar.
-  if (netWorth.fxStale) return;
+  if (netWorth.fxStale) return false;
 
   const date = new Date().toISOString().slice(0, 10);
 
@@ -43,6 +48,8 @@ async function captureSnapshot(nw?: NetWorth): Promise<void> {
       },
     })
     .run();
+
+  return true;
 }
 
 export interface SnapshotPoint {
@@ -71,7 +78,7 @@ export async function captureIfNewDay(nw: NetWorth): Promise<void> {
   if (lastCaptureDate === today) return;
   lastCaptureDate = today;
   try {
-    await captureSnapshot(nw);
+    await captureSnapshotFor(nw);
   } catch (err) {
     console.warn("[snapshot] kaydedilemedi:", (err as Error).message);
   }

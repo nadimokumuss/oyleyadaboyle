@@ -8,6 +8,7 @@ import { loadPortfolio } from "@/lib/finance/portfolioService";
 import { loadDeposits } from "@/lib/finance/depositService";
 import { loadProperties, loadVehicles } from "@/lib/finance/assetService";
 import { loadVentures, loadCashflow } from "@/lib/finance/cashflowService";
+import { loadAssumptions } from "@/lib/assumptions";
 import { RULES } from "./rules";
 import { SEVERITY_RANK, type Opportunity, type PortfolioState } from "./types";
 
@@ -52,6 +53,7 @@ async function buildState(now = new Date()): Promise<PortfolioState> {
       fx.converter.has(money.currency)
         ? fx.converter.toBase(money)
         : Money.zero("USD"),
+    assumptions: loadAssumptions(),
     targets: targetRows.map((t) => ({
       dimension: t.dimension,
       key: t.key,

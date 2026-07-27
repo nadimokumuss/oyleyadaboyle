@@ -5,6 +5,7 @@ import type { DepositView } from "@/lib/finance/depositService";
 import type { PropertyView, VehicleView } from "@/lib/finance/assetService";
 import type { VentureView, CashflowView } from "@/lib/finance/cashflowService";
 import type { PortfolioView } from "@/lib/finance/portfolioService";
+import type { Assumptions } from "@/lib/assumptions";
 
 /**
  * Fırsat motorunun veri sözleşmesi.
@@ -46,6 +47,11 @@ export interface PortfolioState {
     riskProfile: string;
   };
   targets: Array<{ dimension: string; key: string; targetPct: Decimal; tolerancePct: Decimal }>;
+  /**
+   * Kullanıcının düzenleyebildiği varsayımlar (enflasyon, referans getiriler).
+   * Kurallar bunları koda gömmemeli — `lib/assumptions.ts` tek kaynak.
+   */
+  assumptions: Assumptions;
   /**
    * Yerel para birimindeki tutarı USD'ye çevirir.
    *

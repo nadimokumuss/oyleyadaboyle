@@ -6,8 +6,9 @@ import { analyzeSignals, summarizeCrypto, scoreToPercent } from "@/lib/finance/s
 import { Money, formatMoney, formatPercent } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { db } from "@/db/client";
-import { watchlist } from "@/db/schema";
+import { alerts as alertsTable, watchlist } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { AlertForm } from "@/components/forms/AlertForm";
 import { addToWatchlistAction, removeFromWatchlistAction } from "@/app/actions/assets";
 import { classify } from "@/lib/market/registry";
 import { PriceChart } from "@/components/PriceChart";
@@ -28,6 +29,12 @@ export default async function SembolPage({
     .from(watchlist)
     .where(eq(watchlist.symbol, symbol))
     .get();
+
+  const symbolAlerts = db
+    .select()
+    .from(alertsTable)
+    .where(eq(alertsTable.symbol, symbol))
+    .all();
 
   if (!history || history.closes.length === 0) {
     return (
@@ -243,6 +250,19 @@ export default async function SembolPage({
             yatırım tavsiyesi değildir.
           </p>
         </div>
+      </Card>
+
+      <Card
+        title="Fiyat alarmı"
+        hint="tetiklendiğinde kapanır"
+        className="mt-4"
+      >
+        <AlertForm
+          symbol={symbol}
+          currency={history.currency}
+          currentPrice={String(price)}
+          alerts={symbolAlerts}
+        />
       </Card>
     </PageShell>
   );

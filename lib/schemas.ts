@@ -419,8 +419,34 @@ export const settingsSchema = z.object({
   horizonYears: z.coerce.number().int().min(1).max(60),
   idleCashThreshold: optionalDecimal(),
   concentrationThreshold: decimalString({ min: 0, max: 1, label: "Yoğunlaşma eşiği" }),
+  // Varsayılanlı: eski bir sayfadan gönderilen form bu alanları
+  // içermeyebilir ve bu yüzden kaydın tamamen reddedilmesi yanlış olur.
+  lotMethod: z.enum(["fifo", "lifo", "hifo"]).default("fifo"),
+  longTermDays: z.coerce.number().int().min(1).max(3650).default(365),
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;
+
+/**
+ * Kullanıcının düzenleyebildiği varsayımlar.
+ *
+ * Enflasyon için üst sınır bilerek geniş (%500): yüksek enflasyonlu
+ * ülkelerde %100 üzeri gerçektir, ama %1000 girdi hatasıdır.
+ * Alt sınır negatif olabilir — deflasyon da bir gerçektir.
+ */
+export const assumptionsSchema = z.object({
+  inflationTRY: decimalString({ min: -0.5, max: 5, label: "TRY enflasyonu" }),
+  inflationUSD: decimalString({ min: -0.5, max: 5, label: "USD enflasyonu" }),
+  inflationEUR: decimalString({ min: -0.5, max: 5, label: "EUR enflasyonu" }),
+  inflationGBP: decimalString({ min: -0.5, max: 5, label: "GBP enflasyonu" }),
+  inflationCHF: decimalString({ min: -0.5, max: 5, label: "CHF enflasyonu" }),
+  benchmark_usd_deposit: decimalString({ min: -0.5, max: 5, label: "USD mevduat getirisi" }),
+  benchmark_gold: decimalString({ min: -0.5, max: 5, label: "Altın getirisi" }),
+  benchmark_sp500: decimalString({ min: -0.5, max: 5, label: "S&P 500 getirisi" }),
+  capitalGainsRate: decimalString({ min: 0, max: 1, label: "Sermaye kazancı oranı" })
+    .optional()
+    .transform((v) => v ?? "0"),
+});
+export type AssumptionsInput = z.infer<typeof assumptionsSchema>;
 
 const targetSchema = z.object({
   dimension: z.enum(["kind", "country", "currency", "asset"]),
@@ -429,6 +455,84 @@ const targetSchema = z.object({
   tolerancePct: decimalString({ min: 0, max: 1, label: "Tolerans" }).default("0.05"),
 });
 export type TargetInput = z.infer<typeof targetSchema>;
+
+/* ------------------------------------------------------------------ */
+/* Alarmlar, bildirimler, tekrarlayan hareketler                        */
+/* ------------------------------------------------------------------ */
+
+export const alertSchema = z.object({
+  symbol: z.string().trim().toUpperCase().min(1).max(24),
+  condition: z.enum(["above", "below"]),
+  threshold: decimalString({ min: 0, label: "Eşik" }),
+  currency,
+  note,
+});
+export type AlertFormInput = z.infer<typeof alertSchema>;
+
+export const recurringSchema = z
+  .object({
+    id: z.string().trim().optional().or(z.literal("")).transform((v) => v || undefined),
+    assetId: z.string().trim().min(1, "Hesap seçin"),
+    label: z.string().trim().min(1, "Ad zorunlu").max(80),
+    type: z.enum([
+      "dividend", "interest", "rent", "staking",
+      "expense", "fee", "tax", "deposit_in", "withdraw",
+    ]),
+    amount: decimalString({ min: 0, label: "Tutar" }),
+    currency,
+    frequency: z.enum(["weekly", "monthly", "quarterly", "yearly"]),
+    startDate: isoDate,
+    endDate: isoDate.optional().or(z.literal("")).transform((v) => v || null),
+    note,
+  })
+  .refine((v) => !v.endDate || v.endDate >= v.startDate, {
+    message: "Bitiş tarihi başlangıçtan önce olamaz",
+    path: ["endDate"],
+  });
+export type RecurringFormInput = z.infer<typeof recurringSchema>;
+
+/**
+ * Webhook adresi.
+ *
+ * Yalnızca http/https kabul edilir. `javascript:` ve `file:` gibi şemalar
+ * sunucudan istek yapılacağı için tehlikeli olur.
+ */
+export const notifySettingsSchema = z.object({
+  webhookUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .refine(
+      (v) => {
+        if (v === "") return true;
+        try {
+          const u = new URL(v);
+          return u.protocol === "http:" || u.protocol === "https:";
+        } catch {
+          return false;
+        }
+      },
+      { message: "http:// veya https:// ile başlayan geçerli bir adres girin" },
+    )
+    .transform((v) => v || null),
+  schedulerEnabled: z
+    .union([z.literal("on"), z.literal("")])
+    .optional()
+    .transform((v) => v === "on"),
+});
+export type NotifySettingsInput = z.infer<typeof notifySettingsSchema>;
+
+export const goalSchema = z.object({
+  id: z.string().trim().optional().or(z.literal("")).transform((v) => v || undefined),
+  name,
+  targetAmount: decimalString({ min: 0, label: "Hedef tutar" }),
+  currency,
+  targetDate: isoDate,
+  kind: z.enum(["retirement", "property", "education", "emergency", "other"]),
+  priority: z.coerce.number().int().min(1).max(9).default(1),
+  note,
+});
+export type GoalFormInput = z.infer<typeof goalSchema>;
 
 export const watchlistSchema = z.object({
   symbol: z.string().trim().toUpperCase().min(1).max(24),

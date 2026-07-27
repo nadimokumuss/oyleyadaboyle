@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Decimal from "decimal.js";
-import { PageShell, Card, EmptyState } from "@/components/PageShell";
+import { PageShell, Card, EmptyState, ScrollTable } from "@/components/PageShell";
 import { db } from "@/db/client";
 import { watchlist } from "@/db/schema";
 import { getQuotes } from "@/lib/market/registry";
@@ -40,7 +40,7 @@ export default async function KesfetPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollTable label="İzleme listesi tablosu">
             <table className="w-full min-w-[42rem] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-ink-faint">
@@ -117,7 +117,7 @@ export default async function KesfetPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollTable>
         )}
       </Card>
 

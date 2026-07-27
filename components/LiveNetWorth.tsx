@@ -4,6 +4,7 @@ import { Money, formatMoney, formatPercent } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import type { NetWorthPayload, StreamStatus } from "@/lib/useNetWorthStream";
 import Decimal from "decimal.js";
+import { ScrollTable } from "@/components/PageShell";
 
 const STATUS_LABEL: Record<StreamStatus, string> = {
   connecting: "bağlanıyor",
@@ -93,7 +94,15 @@ export function LiveNetWorth({
 
 function StatusDot({ status }: { status: StreamStatus }) {
   return (
-    <span className="flex items-center gap-1.5 text-xs text-ink-faint">
+    // Bağlantı durumu seyrek değişir ve önemlidir — duyurulmaya değer.
+    // Net servet rakamı bilinçli olarak duyurulmuyor: 5 saniyede bir
+    // güncellendiği için ekran okuyucuyu susmaz hâle getirirdi.
+    <span
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="flex items-center gap-1.5 text-xs text-ink-faint"
+    >
       <span
         aria-hidden
         className={cn(
@@ -109,6 +118,7 @@ function StatusDot({ status }: { status: StreamStatus }) {
   );
 }
 
+
 /** Varlık listesi — değer kaynağı (canlı/model/defter) görünür şekilde. */
 export function AssetTable({ assets }: { assets: NetWorthPayload["assets"] }) {
   if (assets.length === 0) return null;
@@ -118,7 +128,10 @@ export function AssetTable({ assets }: { assets: NetWorthPayload["assets"] }) {
   );
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-surface-raised">
+    <ScrollTable
+      label="Varlık dağılımı tablosu"
+      className="rounded-lg border border-line bg-surface-raised"
+    >
       <table className="w-full min-w-[46rem] text-sm">
         <thead>
           <tr className="border-b border-line text-left text-xs text-ink-faint">
@@ -174,7 +187,7 @@ export function AssetTable({ assets }: { assets: NetWorthPayload["assets"] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   );
 }
 

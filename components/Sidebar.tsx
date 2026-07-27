@@ -21,6 +21,7 @@ const GROUPS = [
       { href: "/nakit-akisi", label: "Nakit Akışı", hint: "Gelir & gider" },
       { href: "/borclar", label: "Borçlar", hint: "Kredi & ipotek" },
       { href: "/islemler", label: "İşlemler", hint: "Geçmiş & geri al" },
+      { href: "/vergi", label: "Vergi", hint: "Gerçekleşen K/Z" },
     ],
   },
   {
@@ -35,17 +36,40 @@ const GROUPS = [
   },
   {
     title: null,
-    items: [{ href: "/ayarlar", label: "Ayarlar", hint: "Veri & tercihler" }],
+    items: [
+      { href: "/bildirimler", label: "Bildirimler", hint: "Alarmlar & otomasyon" },
+      { href: "/ayarlar", label: "Ayarlar", hint: "Veri & tercihler" },
+    ],
   },
 ] as const;
 
-export function Sidebar() {
+/**
+ * Gezinme çubuğu. Masaüstünde `app/(panel)/layout.tsx` içinde sabit durur,
+ * dar ekranda `NavDrawer` aynı bileşeni çekmece içinde gösterir — menü
+ * iki yerde kopyalanmaz, tek kaynak burasıdır.
+ *
+ * `onNavigate` yalnızca çekmece için: bir bağlantıya basıldığında panelin
+ * kapanmasını sağlar.
+ */
+export function Sidebar({
+  className,
+  onNavigate,
+  unreadCount = 0,
+}: {
+  className?: string;
+  onNavigate?: () => void;
+  /** Bildirimler girişinde gösterilecek okunmamış sayısı. */
+  unreadCount?: number;
+}) {
   const pathname = usePathname();
 
   return (
     <nav
       aria-label="Ana gezinme"
-      className="flex h-dvh w-60 shrink-0 flex-col border-r border-line bg-surface-raised"
+      className={cn(
+        "flex h-dvh w-60 shrink-0 flex-col border-r border-line bg-surface-raised",
+        className,
+      )}
     >
       <div className="border-b border-line px-5 py-5">
         <p className="text-sm font-semibold text-ink">Servet Terminali</p>
@@ -68,6 +92,7 @@ export function Sidebar() {
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      onClick={onNavigate}
                       aria-current={active ? "page" : undefined}
                       className={cn(
                         "block rounded-md px-3 py-2 text-sm transition-colors",
@@ -77,7 +102,17 @@ export function Sidebar() {
                           : "text-ink-muted hover:bg-surface-hover hover:text-ink",
                       )}
                     >
-                      <span className="block truncate">{item.label}</span>
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate">{item.label}</span>
+                        {item.href === "/bildirimler" && unreadCount > 0 && (
+                          <span
+                            className="num shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-surface"
+                            aria-label={`${unreadCount} okunmamış bildirim`}
+                          >
+                            {unreadCount > 99 ? "99+" : unreadCount}
+                          </span>
+                        )}
+                      </span>
                       <span className="block truncate text-xs text-ink-faint">
                         {item.hint}
                       </span>

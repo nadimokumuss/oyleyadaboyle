@@ -1,4 +1,4 @@
-import { PageShell, Card } from "@/components/PageShell";
+import { PageShell, Card, ScrollTable } from "@/components/PageShell";
 import { db } from "@/db/client";
 import { targets, withholdingRates } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -7,6 +7,9 @@ import { recentAttempts, isPublicDeployment } from "@/lib/security";
 import { TotpForm } from "@/components/forms/TotpForm";
 import { SecurityForm } from "@/components/forms/SecurityForm";
 import { SettingsForm } from "@/components/forms/SettingsForm";
+import { AssumptionsForm } from "@/components/forms/AssumptionsForm";
+import { NotifyForm } from "@/components/forms/NotifyForm";
+import { loadAssumptions } from "@/lib/assumptions";
 import { TargetsForm } from "@/components/forms/TargetsForm";
 import { PinForm } from "@/components/forms/PinForm";
 import { DangerZone } from "@/components/forms/DangerZone";
@@ -21,6 +24,7 @@ export default function AyarlarPage() {
     .where(eq(targets.dimension, "kind"))
     .all();
   const whRows = db.select().from(withholdingRates).all();
+  const assumptions = loadAssumptions();
   const auth = getAuthState();
   const attempts = recentAttempts(10);
 
@@ -40,7 +44,22 @@ export default function AyarlarPage() {
               horizonYears: cfg.horizonYears ?? 20,
               idleCashThreshold: cfg.idleCashThreshold ?? "50000",
               concentrationThreshold: cfg.concentrationThreshold ?? "0.25",
+              lotMethod: cfg.lotMethod,
+              longTermDays: cfg.longTermDays,
             }}
+          />
+        </Card>
+
+        <Card
+          title="Varsayımlar"
+          hint="Reel getiriyi üreten sayılar"
+        >
+          <AssumptionsForm
+            inflation={assumptions.inflation}
+            benchmarks={Object.fromEntries(
+              assumptions.benchmarks.map((b) => [b.key, b.annualReturn]),
+            )}
+            capitalGainsRate={assumptions.capitalGainsRate}
           />
         </Card>
 
@@ -52,7 +71,7 @@ export default function AyarlarPage() {
         </Card>
 
         <Card title="Stopaj oranları" hint="Mevzuat değiştiğinde güncelleyin">
-          <div className="overflow-x-auto">
+          <ScrollTable label="Stopaj oranları tablosu">
             <table className="w-full min-w-[36rem] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-ink-faint">
@@ -79,11 +98,21 @@ export default function AyarlarPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollTable>
           <p className="mt-3 text-pretty text-xs text-ink-faint">
             Bu oranlar temsilîdir. Kendi mevduatınızın gerçek stopaj oranını
             bankanızdan teyit edin; mevduat eklerken tek tek de belirtebilirsiniz.
           </p>
+        </Card>
+
+        <Card
+          title="Bildirimler ve otomasyon"
+          hint="panel kapalıyken çalışan kısım"
+        >
+          <NotifyForm
+            webhookUrl={cfg.webhookUrl ?? ""}
+            schedulerEnabled={cfg.schedulerEnabled}
+          />
         </Card>
 
         <Card title="Kilit">

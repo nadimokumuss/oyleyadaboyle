@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { PageShell, Card } from "@/components/PageShell";
+import { PageShell, Card, ScrollTable } from "@/components/PageShell";
 import { computeNetWorth } from "@/lib/valuation";
 import {
   simulate, runStressTest, STRESS_SCENARIOS, DEFAULT_ASSUMPTIONS,
@@ -7,6 +7,8 @@ import {
 } from "@/lib/engine/montecarlo";
 import { Money, formatMoney, formatPercent } from "@/lib/money";
 import { cn } from "@/lib/cn";
+import { loadGoals } from "@/lib/services/goals";
+import { GoalsForm, type GoalRow } from "@/components/forms/GoalsForm";
 
 export const dynamic = "force-dynamic";
 
@@ -38,13 +40,41 @@ export default async function SenaryoPage() {
     })
     .sort((a, b) => b.weight - a.weight);
 
+  // Hedefler simülasyondan ÖNCE yüklenir: her hedefin ulaşma olasılığı
+  // aynı simülasyonun kendi yılındaki değerlerinden çıkarılır, ayrı bir
+  // koşu gerekmez.
+  const goals = await loadGoals();
+
   const sim = simulate({
     initialValue: total.toNumber(),
     assumptions,
     years: HORIZON,
     paths: 10_000,
     seed: 42,
+    goalTargets: goals.map((g) => ({
+      amount: Number(g.targetUsd),
+      year: Math.max(0, g.yearsRemaining),
+    })),
   });
+
+  const goalRows: GoalRow[] = goals.map((g, i) => ({
+    id: g.id,
+    name: g.name,
+    kind: g.kind,
+    targetAmount: g.targetAmount,
+    currency: g.currency,
+    targetDate: g.targetDate,
+    currentUsd: g.currentUsd,
+    targetUsd: g.targetUsd,
+    yearsRemaining: g.yearsRemaining,
+    progressRatio: g.progress.progress.toFixed(),
+    achieved: g.progress.achieved,
+    overdue: g.progress.overdue,
+    shortfallUsd: g.progress.shortfall.toFixed(),
+    requiredAnnualReturn: g.progress.requiredAnnualReturn?.toFixed() ?? null,
+    requiredMonthlySaving: g.progress.requiredMonthlySaving?.toFixed() ?? null,
+    probability: sim.goalProbabilities[i] ?? null,
+  }));
 
   const stressAssets: StressAsset[] = nw.assets.map((a) => ({
     name: a.name,
@@ -114,7 +144,7 @@ export default async function SenaryoPage() {
 
       {/* --- Varsayımlar --- */}
       <Card title="Kullanılan varsayımlar" hint="mevcut dağılımınıza göre" className="mb-4">
-        <div className="overflow-x-auto">
+        <ScrollTable label="Stres testi sonuçları">
           <table className="w-full min-w-[32rem] text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs text-ink-faint">
@@ -146,7 +176,7 @@ export default async function SenaryoPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </Card>
 
       {/* --- Stres testi --- */}
@@ -214,6 +244,20 @@ export default async function SenaryoPage() {
         değildir. Geçmiş getiriler gelecek performansı garanti etmez ve buradaki
         varsayımlar temsilîdir.
       </p>
+      <Card
+        title="Finansal hedefler"
+        hint="olasılıklar yukarıdaki simülasyondan"
+        className="mt-4"
+      >
+        <GoalsForm goals={goalRows} />
+        <p className="mt-3 text-pretty text-xs text-ink-faint">
+          Ulaşma olasılığı, 10.000 simülasyon yolunun kaçının hedefi
+          <strong className="text-ink-muted"> hedef tarihinde </strong>
+          tutturduğudur. Bandın ortasına bakıp &ldquo;yeter&rdquo; demekten
+          daha dürüst bir cevaptır, ama yine de bir modeldir: getiri ve
+          volatilite varsayımları değişirse sonuç da değişir.
+        </p>
+      </Card>
     </PageShell>
   );
 }

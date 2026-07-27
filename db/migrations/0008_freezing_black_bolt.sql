@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `capital_gains_rate` text DEFAULT '0' NOT NULL;

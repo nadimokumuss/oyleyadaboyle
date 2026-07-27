@@ -281,14 +281,17 @@ export function CurrencySelect({
   defaultValue = "USD",
   id,
   error,
+  onChange,
 }: {
   name: string;
   defaultValue?: string;
   id?: string;
   error?: string;
+  /** Seçim değiştiğinde — tutar alanının para birimi etiketini güncellemek için. */
+  onChange?: React.ChangeEventHandler<HTMLSelectElement>;
 }) {
   return (
-    <Select name={name} defaultValue={defaultValue} id={id} error={error}>
+    <Select name={name} defaultValue={defaultValue} id={id} error={error} onChange={onChange}>
       {CURRENCIES.map((c) => (
         <option key={c} value={c}>
           {c}

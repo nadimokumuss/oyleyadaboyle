@@ -82,7 +82,13 @@ yolunun tam olarak `/data` olması gerekir.
 
 - **Kopya sayısı 1 kalmalı.** `railway.json` içinde `numReplicas: 1` bunun
   için sabitlendi. SQLite tek dosyadır; birden fazla kopya aynı diske
-  yazarsa veri bozulur.
+  yazarsa veri bozulur. Arka plan zamanlayıcısı da bu kısıta yaslanır:
+  her kopya kendi döngüsünü çalıştıracağı için ikinci bir kopya düzenli
+  hareketleri ve kredi taksitlerini paralel işlemeye kalkardı.
+- **Zamanlayıcı uygulama açılışında başlar** (`instrumentation.ts`), ayrı
+  bir cron servisi kurmanıza gerek yok. Ayarlar sayfasından kapatılabilir.
+  Servisi uyutan bir platformda çalıştırıyorsanız zamanlayıcı da uyur —
+  Railway uyutmadığı için sorun olmaz.
 - **Göçler kendiliğinden çalışır.** `docker-entrypoint.sh` her açılışta
   şemayı günceller; elle bir şey yapmanız gerekmez.
 - **Güncelleme:** `git push` yeterli — Railway yeni sürümü kendi derler.

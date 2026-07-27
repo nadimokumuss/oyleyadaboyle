@@ -21,6 +21,8 @@ export function SettingsForm({
     horizonYears: number;
     idleCashThreshold: string;
     concentrationThreshold: string;
+    lotMethod: string;
+    longTermDays: number;
   };
 }) {
   const [state, action] = useActionState(saveSettingsAction, initial);
@@ -143,6 +145,39 @@ export function SettingsForm({
             defaultValue={defaults.concentrationThreshold}
             error={err.concentrationThreshold}
             max={1}
+          />
+        </Field>
+      </div>
+
+      <div className="grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
+        <Field
+          label="Lot seçim yöntemi"
+          htmlFor="lotMethod"
+          error={err.lotMethod}
+          hint="Satışta hangi lot elden çıktı sayılsın. Gerçekleşen kârı doğrudan değiştirir."
+        >
+          <Select id="lotMethod" name="lotMethod" defaultValue={defaults.lotMethod}>
+            <option value="fifo">FIFO — en eski lot önce</option>
+            <option value="lifo">LIFO — en yeni lot önce</option>
+            <option value="hifo">HIFO — en pahalı lot önce</option>
+          </Select>
+        </Field>
+
+        <Field
+          label="Uzun vade eşiği (gün)"
+          htmlFor="longTermDays"
+          error={err.longTermDays}
+          hint="Vergi raporu kısa/uzun vade ayrımını buna göre yapar."
+        >
+          <TextInput
+            id="longTermDays"
+            name="longTermDays"
+            type="number"
+            min={1}
+            max={3650}
+            defaultValue={defaults.longTermDays}
+            error={err.longTermDays}
+            className="num"
           />
         </Field>
       </div>
