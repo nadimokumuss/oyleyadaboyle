@@ -1,9 +1,13 @@
 # Servet Terminali
 
 Çok para birimli, çok ülkeli kişisel varlık yönetim paneli. Nakit, hisse,
-kripto, mevduat, gayrimenkul, araç ve girişimleri tek ekranda canlı
-fiyatlarla takip eder; kredileri düşer, satışları kaydeder ve gelir
-fırsatları önerir.
+kripto, mevduat, tahvil, gayrimenkul, araç, girişim, emeklilik ve kıymetli
+eşyayı tek ekranda canlı fiyatlarla takip eder; kredileri düşer, satışları
+kaydeder, gerçekleşen kâr/zararı vergi için raporlar ve gelir fırsatları
+önerir.
+
+**Panel kapalıyken de çalışır:** düzenli hareketler işlenir, kredi
+taksitleri ilerler, servet eğrisi birikir, fiyat alarmları değerlendirilir.
 
 Tüm veri kendi bilgisayarınızda (veya kendi sunucunuzda) kalır. Dışarı
 yalnızca "BTC fiyatı nedir" tipi anonim sorgular gider.
@@ -250,7 +254,21 @@ olduğunda) USD maliyet TRY piyasa değerinden çıkarılıp anlamsız bir
 kâr/zarar üretilmişti; koruma tam da bunun için var.
 
 **Planlanan varlık servete sayılmaz.** Sahip olmadığınız bir evi servetinize
-eklemek, kendinizi olduğunuzdan zengin sanmanıza yol açar.
+eklemek, kendinizi olduğunuzdan zengin sanmanıza yol açar. Aynı kural
+emeklilikte de geçerli: devlet katkısının **hak edilmemiş** kısmı net
+servete yazılmaz, çünkü bugün çıksanız onu alamazsınız.
+
+**Uydurma veri üretilmez.** Değeri modellenebilen varlıklarda model
+kullanılır (konut endeksi, amortisman eğrisi) ve rozetle işaretlenir.
+Modellenemeyenlerde model **hiç yoktur**: bir tablonun değeri bir endeksten
+türetilemez, o yüzden kıymetli eşyada değer ya alış fiyatıdır ya da sizin
+girdiğiniz ekspertiz. Fiyat sağlayıcısına ulaşılamazsa son bilinen fiyat
+"bayat" işaretiyle gösterilir, tahmin edilmez.
+
+**Zamanlanmış iş defteri veritabanındadır.** Bellekteki bir bayrak yetmez:
+süreç yeniden başlayınca sıfırlanır ve o günün işi ikinci kez çalışır. Para
+hareketi üreten bir iş için bu çift kayıt demektir. `job_runs` tablosundaki
+`(jobKey, runKey)` benzersizliği bunu veritabanı düzeyinde imkânsız kılar.
 
 **Panel kendini denetler.** Nakit eksiye düşerse, bir varlık ödemesiz
 eklenirse veya satılan varlığın kredisi açık kalırsa komuta ekranında uyarı
@@ -292,7 +310,7 @@ cp data/servet.db "yedek-$(date +%F).db"
 ```
 
 CSV dışa aktarım da var: **Ayarlar → Veri**, veya doğrudan
-`/api/export?type=positions|transactions|snapshots`
+`/api/export?type=positions|transactions|snapshots|tax`
 
 Aynı yerden CSV içe aktarabilirsiniz (nakit ve piyasa pozisyonları).
 
@@ -386,27 +404,36 @@ app/
   api/         SSE akışı, fiyat/kur uçları, arama, dışa aktarma, sağlık
   giris/       Giriş; kurulum/ ilk kurulum sihirbazı
 lib/
-  money.ts     Para aritmetiğinin tek kaynağı (birim güvenliği burada)
-  fx.ts        Kur çevrimi ve getiri ayrıştırması
+  money.ts       Para aritmetiğinin tek kaynağı (birim güvenliği burada)
+  fx.ts          Kur çevrimi ve getiri ayrıştırması
+  valuation.ts   Net servet — tek doğruluk kaynağı
   assumptions.ts Enflasyon ve referans getiriler — ayarlardan okunur
-  finance/realized.ts   Vergi için lot bazlı gerçekleşen K/Z olayları
-  finance/dividends.ts  Temettü verimi ve ileriye dönük tahmin
-  finance/benchmark.ts  Endeksle karşılaştırma
-  finance/goals.ts      Hedef ilerlemesi ve finansal bağımsızlık
-  finance/bond.ts       İşlemiş faiz, itfa maliyeti, YTM
-  finance/pension.ts    Hak ediş kademeleri ve devlet katkısı
-  finance/collectible.ts Ekspertiz ve taşıma maliyeti
-  scheduler.ts Arka plan döngüsü ve idempotency defteri
-  jobs.ts      Zamanlayıcının çalıştırdığı işlerin listesi
-  bootstrap.ts Zamanlayıcıyı ilk sunucu isteğinde ayağa kaldırır
-  finance/     Faiz, maliyet esası, amortisman, kredi, sinyal motorları
-  market/      Fiyat sağlayıcıları, önbellek, hız sınırlayıcı
-  engine/      Fırsat kuralları, Monte Carlo, dağılım önerisi
-  services/    Yazma katmanı (finansman, satış, içe aktarma, denetim)
-  valuation.ts Net servet — tek doğruluk kaynağı
-  auth.ts      Oturum ve ikinci faktör; security.ts kaba kuvvet koruması
-components/    Arayüz; form/ (girdi öğeleri), forms/ (tam formlar), pickers/
-db/            Şema, göçler, demo senaryo, referans veriler
+  auth.ts        Oturum ve ikinci faktör; security.ts kaba kuvvet koruması
+
+  finance/       Varlık türü başına hesap motoru:
+                   deposit    faiz tahakkuku, gün sayımı, stopaj
+                   costbasis  WAC + FIFO maliyet esası
+                   realized   vergi için lot bazlı K/Z olayları
+                   bond       işlemiş faiz, itfa maliyeti, YTM
+                   pension    hak ediş kademeleri, devlet katkısı
+                   collectible ekspertiz ve taşıma maliyeti
+                   realestate, vehicle, venture, loan, cashflow
+                   dividends  temettü verimi ve ileriye dönük tahmin
+                   benchmark  endeksle karşılaştırma
+                   goals      hedef ilerlemesi, finansal bağımsızlık
+                   metrics    XIRR, TWR, Sharpe, düşüş
+  market/        Fiyat sağlayıcıları, önbellek, hız sınırlayıcı
+  engine/        Fırsat kuralları, Monte Carlo, dağılım önerisi
+  services/      Yazma katmanı (finansman, satış, içe aktarma, denetim,
+                 alarmlar, tekrarlayan hareketler, bildirimler)
+
+  scheduler.ts   Arka plan döngüsü ve idempotency defteri
+  jobs.ts        Zamanlayıcının çalıştırdığı işlerin listesi
+  bootstrap.ts   Zamanlayıcıyı ilk sunucu isteğinde ayağa kaldırır
+
+components/      Arayüz; form/ (girdi öğeleri), forms/ (tam formlar), pickers/
+db/              Şema, göçler, demo senaryo, referans veriler
+smoke/           Rota duman testi (ayrı komut — aşağıya bakın)
 ```
 
 Testler kaynak dosyaların yanında (`*.test.ts`): para çekirdeği, finans
